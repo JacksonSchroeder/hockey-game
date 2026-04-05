@@ -16,8 +16,11 @@ func _on_blade_entered(area: Area3D) -> void:
 		return
 	if _cooldown_timer > 0.0:
 		return
-	var skater = area.get_parent().get_parent()
-	carrier = skater
+	var node = area
+	while node and not node is SkaterController:
+		node = node.get_parent()
+	if node:
+		carrier = node
 
 func release(direction: Vector3, power: float) -> void:
 	carrier = null
@@ -41,7 +44,7 @@ func _is_airborne() -> bool:
 func _physics_process(delta: float) -> void:
 	if carrier != null:
 		freeze = true
-		var blade_node = carrier.get_node("Blade")
+		var blade_node = carrier.get_node("UpperBody/Blade")
 		global_position = blade_node.global_position
 		global_position.y = ice_height
 	else:

@@ -12,3 +12,4 @@ var self_pass: bool = false
 var shot_cancel: bool = false
 var elevate: bool = false
 var brake: bool = false
+var quick_shot: bool = false

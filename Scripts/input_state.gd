@@ -9,6 +9,7 @@ var dash: bool = false
 var ability: bool = false
 var reset: bool = false
 var self_pass: bool = false
+var self_shot: bool = false
 var shot_cancel: bool = false
 var elevate: bool = false
 var brake: bool = false

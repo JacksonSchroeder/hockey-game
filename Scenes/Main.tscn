@@ -89,6 +89,7 @@ script = ExtResource("1_r150o")
 max_speed = 11.0
 blade_height = -0.85
 puck = NodePath("../Puck")
+invert_plane = true
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Skater"]
 shape = SubResource("CylinderShape3D_r0du0")
@@ -122,6 +123,8 @@ skeleton = NodePath("../../..")
 [node name="StickMesh" type="MeshInstance3D" parent="Skater/UpperBody"]
 mesh = SubResource("BoxMesh_bmxlf")
 
+[node name="Shoulder" type="Marker3D" parent="Skater/UpperBody"]
+
 [node name="LowerBody" type="Node3D" parent="Skater"]
 
 [node name="LowerBodyMesh" type="MeshInstance3D" parent="Skater/LowerBody"]
@@ -131,6 +134,7 @@ skeleton = NodePath("../..")
 
 [node name="Puck" type="RigidBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0.1, 0)
+collision_layer = 0
 axis_lock_angular_x = true
 axis_lock_angular_z = true
 mass = 0.17

@@ -13,6 +13,7 @@ func gather() -> InputState:
 	state.ability = Input.is_action_just_pressed("ability")
 	state.reset = Input.is_action_just_pressed("reset")
 	state.self_pass = Input.is_action_just_pressed("self_pass")
+	state.self_shot = Input.is_action_just_pressed("self_shot")
 	state.shot_cancel = Input.is_action_pressed("shot_cancel")
 	state.elevate = Input.is_action_pressed("elevate")
 	state.brake = Input.is_action_pressed("brake")

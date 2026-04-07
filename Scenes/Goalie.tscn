@@ -1,0 +1,45 @@
+[gd_scene load_steps=6 format=3 uid="uid://bu5a1k2dpj8ot"]
+
+[ext_resource type="Script" uid="uid://hxvqvacak3bm" path="res://Scripts/goalie.gd" id="1_fbmg1"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_v1gob"]
+size = Vector3(0.7, 0.25, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jw32o"]
+size = Vector3(0.7, 0.25, 0.5)
+
+[sub_resource type="BoxMesh" id="BoxMesh_jw32o"]
+size = Vector3(0.6, 0.6, 0.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_50glp"]
+size = Vector3(0.6, 0.6, 0.3)
+
+[node name="Top Goalie" type="StaticBody3D"]
+script = ExtResource("1_fbmg1")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.475, 0.15, 0)
+mesh = SubResource("BoxMesh_v1gob")
+skeleton = NodePath("")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.475, 0.15, 0)
+shape = SubResource("BoxShape3D_jw32o")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.475, 0.15, 0)
+mesh = SubResource("BoxMesh_v1gob")
+skeleton = NodePath("")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.475, 0.15, 0)
+shape = SubResource("BoxShape3D_jw32o")
+
+[node name="MeshInstance3D3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+mesh = SubResource("BoxMesh_jw32o")
+skeleton = NodePath("")
+
+[node name="CollisionShape3D3" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("BoxShape3D_50glp")

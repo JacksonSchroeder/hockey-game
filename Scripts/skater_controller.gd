@@ -1,8 +1,6 @@
 class_name SkaterController
 extends CharacterBody3D
 
-@export var camera: Camera3D
-
 # ── State Machine ─────────────────────────────────────────────────────────────
 enum State {
 	SKATING_WITHOUT_PUCK,
@@ -108,8 +106,6 @@ var _prev_blade_dir: Vector3 = Vector3.ZERO
 var _slapper_charge_timer: float = 0.0
 
 func _ready() -> void:
-	_gatherer = LocalInputGatherer.new(camera)
-	add_child(_gatherer)
 
 	var hand_sign: float = -1.0 if is_left_handed else 1.0
 	shoulder.position = Vector3(hand_sign * shoulder_offset, 0.0, 0.0)

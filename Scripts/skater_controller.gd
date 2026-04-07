@@ -20,6 +20,11 @@ enum State {
 @export var rotation_speed: float = 6.0
 @export var move_deadzone: float = 0.1
 @export var brake_multiplier: float = 5.0
+@export var thrust_penalty: float = 0.7      # min thrust multiplier on sharp turns
+@export var turn_speed_bleed: float = 0.3    # how much speed bleeds on opposing input
+@export var backward_thrust_multiplier: float = 0.7  # how much slower backward skating is
+@export var crossover_thrust_multiplier: float = 0.85  # perpendicular/sideways skating
+@export var facing_lag_speed: float = 6.0  # how fast facing follows movement direction
 
 # ── Facing Tuning ─────────────────────────────────────────────────────────────
 @export var facing_drag_speed: float = 3.0
@@ -32,6 +37,8 @@ enum State {
 @export var wall_squeeze_threshold: float = 0.3
 @export var blade_forehand_limit: float = 90.0	# degrees
 @export var blade_backhand_limit: float = 80.0	# degrees
+@export var max_mouse_distance: float = 4.0
+@export var min_blade_reach: float = 0.3
 
 # ── Upper Body Tuning ─────────────────────────────────────────────────────────
 @export var upper_body_twist_ratio: float = 0.5
@@ -75,6 +82,8 @@ enum State {
 @onready var stick_raycast: RayCast3D = $StickRaycast
 @onready var stick_mesh: MeshInstance3D = $UpperBody/StickMesh
 
+var mouse_world_pos: Vector3 = Vector3.ZERO
+
 # ── Runtime State ─────────────────────────────────────────────────────────────
 var _input: InputState
 var _gatherer: LocalInputGatherer
@@ -110,6 +119,8 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	_input = _gatherer.gather()
+	
+	mouse_world_pos = _input.mouse_world_pos
 
 	# Self pass / shot
 	if _input.self_pass and puck.carrier == null:
@@ -375,7 +386,9 @@ func _apply_blade_from_mouse(delta: float) -> void:
 
 	# Reposition blade from clamped angle
 	var clamped_dir: Vector3 = Vector3(sin(clamped_angle), 0.0, -cos(clamped_angle))
-	var clamped_target: Vector3 = shoulder.position + clamped_dir * minf(to_mouse.length(), plane_reach)
+	var t: float = clampf(to_mouse.length() / max_mouse_distance, 0.0, 1.0)
+	var reach: float = lerpf(min_blade_reach, plane_reach, t)
+	var clamped_target: Vector3 = shoulder.position + clamped_dir * reach
 	clamped_target.y = blade_height
 	clamped_target = _apply_wall_clamping(clamped_target)
 	blade.position = clamped_target
@@ -445,46 +458,65 @@ func _apply_upper_body(delta: float) -> void:
 
 # ── Facing ────────────────────────────────────────────────────────────────────
 func _apply_facing(delta: float) -> void:
-	# Facing locked during these states
 	if _state in [State.WRISTER_AIM, State.SLAPPER_CHARGE_WITH_PUCK, State.SLAPPER_CHARGE_WITHOUT_PUCK]:
 		return
 
-	var mouse_world: Vector3 = _input.mouse_world_pos
-	var to_mouse: Vector2 = Vector2(
-		mouse_world.x - global_position.x,
-		mouse_world.z - global_position.z
-	)
-
-	if to_mouse.length() <= move_deadzone:
-		return
+	var move: Vector2 = _input.move_vector
 
 	if _input.facing_held:
-		# Continuous facing toward mouse
-		_facing = _facing.lerp(to_mouse.normalized(), rotation_speed * delta).normalized()
-	elif _input.facing_pressed:
-		# Fast lerp snap toward mouse
-		_facing = _facing.lerp(to_mouse.normalized(), facing_snap_speed * delta).normalized()
+		# Backward skating mode — face the mouse direction
+		var mouse_world: Vector3 = _input.mouse_world_pos
+		var to_mouse: Vector2 = Vector2(
+			mouse_world.x - global_position.x,
+			mouse_world.z - global_position.z
+		)
+		if to_mouse.length() > move_deadzone:
+			_facing = _facing.lerp(to_mouse.normalized(), rotation_speed * delta).normalized()
+	else:
+		# Default — facing follows movement direction with lag
+		if move.length() > move_deadzone:
+			_facing = _facing.lerp(move.normalized(), facing_lag_speed * delta).normalized()
 
+	# Drag past blade clamp still rotates facing
 	rotation.y = atan2(-_facing.x, -_facing.y)
 	lower_body.rotation.y = 0.0
 
 # ── Movement ──────────────────────────────────────────────────────────────────
 func _apply_movement(delta: float) -> void:
 	if _state == State.SLAPPER_CHARGE_WITH_PUCK:
-		# Glide handled in state function
+		var slapper_vel: Vector2 = Vector2(velocity.x, velocity.z)
+		slapper_vel = slapper_vel.move_toward(Vector2.ZERO, friction * delta)
+		velocity.x = slapper_vel.x
+		velocity.z = slapper_vel.y
 		return
 
 	var move: Vector2 = _input.move_vector
 
 	if move.length() > move_deadzone:
 		var thrust_dir: Vector3 = Vector3(move.x, 0.0, move.y)
-		velocity += thrust_dir * thrust * delta
 
+		# Dot product between input direction and facing direction
+		var facing_dir: Vector2 = Vector2(-sin(rotation.y), -cos(rotation.y))
+		var move_dot: float = facing_dir.dot(move.normalized())
+
+		# Map dot product to thrust multiplier
+		# forward (dot=1) = full thrust
+		# sideways (dot=0) = crossover multiplier
+		# backward (dot=-1) = backward multiplier
+		var thrust_scale: float
+		if move_dot >= 0.0:
+			thrust_scale = lerpf(crossover_thrust_multiplier, 1.0, move_dot)
+		else:
+			thrust_scale = lerpf(backward_thrust_multiplier, crossover_thrust_multiplier, move_dot + 1.0)
+
+		velocity += thrust_dir * thrust * thrust_scale * delta
+
+		# Speed cap
 		var speed: float = Vector2(velocity.x, velocity.z).length()
 		if speed > max_speed:
 			var pre_thrust_speed: float = Vector2(
-				velocity.x - thrust_dir.x * thrust * delta,
-				velocity.z - thrust_dir.z * thrust * delta
+				velocity.x - thrust_dir.x * thrust * thrust_scale * delta,
+				velocity.z - thrust_dir.z * thrust * thrust_scale * delta
 			).length()
 			var target_speed: float = maxf(pre_thrust_speed, max_speed)
 			if speed > target_speed:

@@ -6,7 +6,7 @@
 size = Vector3(0.7, 0.25, 0.5)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_jw32o"]
-size = Vector3(0.7, 0.25, 0.5)
+size = Vector3(0.7, 0.4, 0.5)
 
 [sub_resource type="BoxMesh" id="BoxMesh_jw32o"]
 size = Vector3(0.6, 0.6, 0.3)
@@ -14,7 +14,7 @@ size = Vector3(0.6, 0.6, 0.3)
 [sub_resource type="BoxShape3D" id="BoxShape3D_50glp"]
 size = Vector3(0.6, 0.6, 0.3)
 
-[node name="Top Goalie" type="StaticBody3D"]
+[node name="Goalie" type="StaticBody3D"]
 script = ExtResource("1_fbmg1")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]

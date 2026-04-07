@@ -84,7 +84,7 @@ var mouse_world_pos: Vector3 = Vector3.ZERO
 
 # ── Runtime State ─────────────────────────────────────────────────────────────
 var _input: InputState
-var _gatherer: LocalInputGatherer
+var client: PlayerClient = null
 var _state: State = State.SKATING_WITHOUT_PUCK
 
 # Facing
@@ -109,13 +109,17 @@ func _ready() -> void:
 
 	var hand_sign: float = -1.0 if is_left_handed else 1.0
 	shoulder.position = Vector3(hand_sign * shoulder_offset, 0.0, 0.0)
+	
 
+func initialize(assigned_puck: Puck) -> void:
+	puck = assigned_puck
 	puck.puck_picked_up.connect(_on_puck_picked_up)
 	puck.puck_released.connect(_on_puck_released)
 
 func _physics_process(delta: float) -> void:
-	_input = _gatherer.gather()
-	
+	if client == null:
+		return
+	_input = client.get_input()
 	mouse_world_pos = _input.mouse_world_pos
 
 	# Self pass / shot
@@ -216,11 +220,11 @@ func _state_wrister_aim(delta: float) -> void:
 	_prev_blade_pos = blade.position
 
 	# Update shot direction from blade position
-	var blade_world: Vector3 = upper_body.to_global(blade.position)
-	blade_world.y = 0.0
+	var player_pos: Vector3 = global_position
+	player_pos.y = 0.0
 	var mouse_target: Vector3 = _input.mouse_world_pos
 	mouse_target.y = 0.0
-	var to_target: Vector3 = mouse_target - blade_world
+	var to_target: Vector3 = mouse_target - player_pos
 	if to_target.length() > 0.01:
 		_shot_dir = to_target.normalized()
 
@@ -308,13 +312,20 @@ func _enter_slapper_charge() -> void:
 
 func _release_wrister() -> void:
 	if puck.carrier == self and _shot_dir != Vector3.ZERO:
+		# Compute shot direction at moment of release
+		var player_pos: Vector3 = global_position
+		player_pos.y = 0.0
+		var mouse_target: Vector3 = _input.mouse_world_pos
+		mouse_target.y = 0.0
+		_shot_dir = (mouse_target - player_pos).normalized()
+
 		var charge_t: float = clampf(_charge_distance / max_wrister_charge_distance, 0.0, 1.0)
 
 		if charge_t < quick_shot_threshold:
-			# Quick shot — fire in blade direction at fixed power
-			var local_blade: Vector3 = blade.position - shoulder.position
-			local_blade.y = 0.0
-			var blade_dir: Vector3 = (global_transform.basis * local_blade).normalized()
+			# Quick shot — fire toward mouse from blade world position
+			var blade_world: Vector3 = upper_body.to_global(blade.position)
+			blade_world.y = 0.0
+			var blade_dir: Vector3 = (mouse_target - blade_world).normalized()
 			var y_component: float = wrister_elevation if _is_elevated else 0.0
 			var blade_dir_elevated: Vector3 = Vector3(blade_dir.x, y_component, blade_dir.z).normalized()
 			puck.release(blade_dir_elevated, quick_shot_power)
@@ -368,7 +379,7 @@ func _apply_blade_from_mouse(delta: float) -> void:
 		return
 
 	# Raw angle from shoulder to mouse in upper_body local space
-	var local_to_mouse: Vector3 = upper_body.to_local(shoulder_world + to_mouse.normalized() * minf(to_mouse.length(), plane_reach))
+	var local_to_mouse: Vector3 = upper_body.to_local(shoulder_world + to_mouse.normalized())
 	local_to_mouse.y = 0.0
 	var raw_angle: float = atan2((local_to_mouse - shoulder.position).x, -(local_to_mouse - shoulder.position).z)
 

@@ -1,4 +1,4 @@
-class_name BufferedState
+class_name BufferedSkaterState
 
 
 var timestamp: float

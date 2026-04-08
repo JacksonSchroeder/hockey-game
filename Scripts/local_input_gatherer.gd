@@ -32,7 +32,6 @@ func gather() -> InputState:
 	state.brake = Input.is_action_pressed("brake")
 	state.elevation_up = _pending_elevation_up
 	state.elevation_down = _pending_elevation_down
-	state.reset = Input.is_action_just_pressed("reset")
 	state.mouse_world_pos = _get_mouse_world_pos(_camera)
 	# Clear pending flags after gather
 	_pending_shoot_pressed = false

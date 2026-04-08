@@ -12,7 +12,6 @@ var puck: Puck = null
 var goalies: Array = []
 var players: Dictionary = {}  # peer_id -> PlayerRecord
 var _next_slot: int = 1       # host is always slot 0
-var _last_carrier_peer_id: int = -1
 
 var puck_controller: PuckController = null
 
@@ -148,28 +147,17 @@ func apply_world_state(state: Array) -> void:
 		if not players.has(peer_id):
 			continue
 		var record: PlayerRecord = players[peer_id]
+		var skater_network_state := SkaterNetworkState.from_array(skater_state)
 		if record.is_local:
-			var server_state := SkaterNetworkState.from_array(skater_state)
-			(record.controller as LocalController).reconcile(server_state)
+			(record.controller as LocalController).reconcile(skater_network_state)
 			continue
-		record.controller.apply_network_state(skater_state)
+		record.controller.apply_network_state(skater_network_state)
 
 	# Puck state
 	if puck_controller == null:
 		return
 	var puck_state := PuckNetworkState.from_array([state[i], state[i + 1], state[i + 2]])
-	puck_controller.apply_state(puck_state.to_array())
-
-	# Drive local player state machine from carrier changes
-	var local_peer_id: int = multiplayer.get_unique_id()
-	if puck_state.carrier_peer_id != _last_carrier_peer_id:
-		var local_record: PlayerRecord = get_local_player()
-		if local_record != null:
-			if puck_state.carrier_peer_id == local_peer_id:
-				local_record.controller.on_puck_picked_up_network()
-			elif _last_carrier_peer_id == local_peer_id:
-				local_record.controller.on_puck_released_network()
-		_last_carrier_peer_id = puck_state.carrier_peer_id
+	puck_controller.apply_state(puck_state)
 
 # ── Accessors ─────────────────────────────────────────────────────────────────
 func get_puck() -> Puck:
@@ -181,8 +169,18 @@ func get_local_player() -> PlayerRecord:
 			return players[peer_id]
 	return null
 	
+func on_local_player_picked_up_puck() -> void:
+	var record := get_local_player()
+	if record != null:
+		record.controller.on_puck_picked_up_network()
+	puck_controller.notify_local_pickup()
+
 func _on_puck_release_requested(direction: Vector3, power: float) -> void:
 	if NetworkManager.is_host:
 		puck.release(direction, power)
 	else:
+		var record := get_local_player()
+		if record != null:
+			record.controller.on_puck_released_network()
+		puck_controller.notify_local_release(direction, power)
 		NetworkManager.send_puck_release(direction, power)

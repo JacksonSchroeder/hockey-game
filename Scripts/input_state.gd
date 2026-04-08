@@ -12,9 +12,6 @@ var facing_held: bool = false
 var brake: bool = false
 var elevation_up: bool = false
 var elevation_down: bool = false
-var reset: bool = false
-var self_pass: bool = false
-var self_shot: bool = false
 
 func to_array() -> Array:
 	return [

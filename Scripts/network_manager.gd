@@ -111,6 +111,13 @@ func spawn_remote_skater(peer_id: int, slot: int) -> void:
 func sync_existing_players(player_data: Array) -> void:
 	GameManager.sync_existing_players(player_data)
 	
+func send_puck_picked_up(peer_id: int) -> void:
+	notify_puck_picked_up.rpc_id(peer_id)
+
+@rpc("authority", "reliable")
+func notify_puck_picked_up() -> void:
+	GameManager.on_local_player_picked_up_puck()
+
 func send_puck_release(direction: Vector3, power: float) -> void:
 	release_puck.rpc_id(1, direction, power)
 

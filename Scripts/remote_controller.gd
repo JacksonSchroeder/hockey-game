@@ -4,8 +4,7 @@ extends SkaterController
 @export var interpolation_delay: float = 0.1
 
 var _latest_input: InputState = InputState.new()
-var _input_buffer: Array[InputState] = []
-var _state_buffer: Array = []
+var _state_buffer: Array[BufferedSkaterState] = []
 var _current_time: float = 0.0
 var _last_processed_sequence: int = 0
 
@@ -21,21 +20,15 @@ func _physics_process(delta: float) -> void:
 
 func receive_input(state: InputState) -> void:
 	_latest_input = state
-	#_input_buffer.append(state)
 
 func _drive_from_input(delta: float) -> void:
 	_last_processed_sequence = _latest_input.sequence
 	_process_input(_latest_input, delta)
-	#if _input_buffer.size() == 0:
-		#return
-	#var input: InputState = _input_buffer.pop_front()
-	#_process_input(input, delta)
 
-func apply_network_state(data: Array) -> void:
+func apply_network_state(state: SkaterNetworkState) -> void:
 	if NetworkManager.is_host:
 		return
-	var state := SkaterNetworkState.from_array(data)
-	var buffered := BufferedState.new()
+	var buffered := BufferedSkaterState.new()
 	buffered.timestamp = _current_time
 	buffered.state = state
 	_state_buffer.append(buffered)
@@ -46,11 +39,11 @@ func _interpolate() -> void:
 	var render_time: float = _current_time - interpolation_delay
 	if _state_buffer.size() < 2:
 		return
-	var from_state: BufferedState = null
-	var to_state: BufferedState = null
+	var from_state: BufferedSkaterState = null
+	var to_state: BufferedSkaterState = null
 	for i in range(_state_buffer.size() - 1):
-		var a: BufferedState = _state_buffer[i]
-		var b: BufferedState = _state_buffer[i + 1]
+		var a: BufferedSkaterState = _state_buffer[i]
+		var b: BufferedSkaterState = _state_buffer[i + 1]
 		if a.timestamp <= render_time and render_time <= b.timestamp:
 			from_state = a
 			to_state = b

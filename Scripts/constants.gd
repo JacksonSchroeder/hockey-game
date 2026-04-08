@@ -6,6 +6,7 @@ const MAX_PLAYERS: int = 6
 const DEFAULT_IP: String = "127.0.0.1"
 const INPUT_RATE: int = 60
 const STATE_RATE: int = 20
+const ICE_FRICTION: float = 0.01
 
 # Physics
 const PHYSICS_TICK: int = 240

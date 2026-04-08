@@ -1,6 +1,9 @@
 class_name LocalController
 extends SkaterController
 
+@export var reconcile_position_threshold: float = 0.05
+@export var reconcile_velocity_threshold: float = 0.1
+
 @onready var camera: GameCamera = null
 var _gatherer: LocalInputGatherer = null
 var _current_input: InputState = InputState.new()
@@ -29,14 +32,15 @@ func _physics_process(delta: float) -> void:
 	_process_input(_current_input, delta)
 	
 func reconcile(server_state: SkaterNetworkState) -> void:
-	# Discard confirmed inputs
 	_input_history = _input_history.filter(
 		func(i: InputState): return i.sequence > server_state.last_processed_sequence
 	)
-	# Reset to server state
+	var position_error := skater.global_position.distance_to(server_state.position)
+	var velocity_error := skater.velocity.distance_to(server_state.velocity)
+	if position_error < reconcile_position_threshold and velocity_error < reconcile_velocity_threshold:
+		return
 	skater.global_position = server_state.position
 	skater.velocity = server_state.velocity
 	skater.set_facing(server_state.facing)
-	# Replay unconfirmed inputs
 	for input in _input_history:
 		_process_input(input, input.delta)

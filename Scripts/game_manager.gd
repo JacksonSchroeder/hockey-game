@@ -12,14 +12,15 @@ var puck: Puck = null
 var goalies: Array = []
 var players: Dictionary = {}  # peer_id -> PlayerRecord
 var _next_slot: int = 1       # host is always slot 0
+var _last_carrier_peer_id: int = -1
+
+var puck_controller: PuckController = null
 
 func _ready() -> void:
 	pass
 
 # ── Network Callbacks ─────────────────────────────────────────────────────────
 func on_host_started() -> void:
-	print("current scene: ", get_tree().current_scene.name)
-	puck = get_tree().current_scene.get_node("Puck")
 	_spawn_world()
 	_spawn_local_player(1, 0)
 
@@ -70,13 +71,16 @@ func spawn_remote_skater(peer_id: int, slot: int) -> void:
 
 # ── Spawning ──────────────────────────────────────────────────────────────────
 func _spawn_world() -> void:
-	puck = get_tree().current_scene.get_node("Puck")
+	_spawn_puck()
 	_spawn_goalies()
 
 func _spawn_puck() -> void:
 	puck = PUCK_SCENE.instantiate()
 	puck.position = Constants.PUCK_START_POS
-	#get_tree().current_scene.add_child(puck)
+	get_tree().current_scene.add_child(puck)
+	puck_controller = PuckController.new()
+	get_tree().current_scene.add_child(puck_controller)
+	puck_controller.setup(puck, NetworkManager.is_host)
 
 func _spawn_goalies() -> void:
 	var top := GOALIE_SCENE.instantiate()
@@ -103,6 +107,8 @@ func _spawn_local_player(peer_id: int, slot: int) -> void:
 	get_tree().current_scene.add_child(controller)
 	controller.setup(skater, puck)
 	record.controller = controller
+	
+	controller.puck_release_requested.connect(_on_puck_release_requested)
 
 	players[peer_id] = record
 	NetworkManager.register_local_controller(controller)
@@ -130,13 +136,12 @@ func get_world_state() -> Array:
 		var record: PlayerRecord = players[peer_id]
 		state.append(peer_id)
 		state.append(record.controller.get_network_state())
-	state.append(puck.global_position)
-	state.append(puck.linear_velocity)
+	state.append_array(puck_controller.get_state())
 	return state
 
 func apply_world_state(state: Array) -> void:
 	var i: int = 0
-	while i < state.size() - 2:
+	while i < state.size() - 3:
 		var peer_id: int = state[i]
 		var skater_state: Array = state[i + 1]
 		i += 2
@@ -148,8 +153,23 @@ func apply_world_state(state: Array) -> void:
 			(record.controller as LocalController).reconcile(server_state)
 			continue
 		record.controller.apply_network_state(skater_state)
-	puck.global_position = state[i]
-	puck.linear_velocity = state[i + 1]
+
+	# Puck state
+	if puck_controller == null:
+		return
+	var puck_state := PuckNetworkState.from_array([state[i], state[i + 1], state[i + 2]])
+	puck_controller.apply_state(puck_state.to_array())
+
+	# Drive local player state machine from carrier changes
+	var local_peer_id: int = multiplayer.get_unique_id()
+	if puck_state.carrier_peer_id != _last_carrier_peer_id:
+		var local_record: PlayerRecord = get_local_player()
+		if local_record != null:
+			if puck_state.carrier_peer_id == local_peer_id:
+				local_record.controller.on_puck_picked_up_network()
+			elif _last_carrier_peer_id == local_peer_id:
+				local_record.controller.on_puck_released_network()
+		_last_carrier_peer_id = puck_state.carrier_peer_id
 
 # ── Accessors ─────────────────────────────────────────────────────────────────
 func get_puck() -> Puck:
@@ -160,3 +180,9 @@ func get_local_player() -> PlayerRecord:
 		if players[peer_id].is_local:
 			return players[peer_id]
 	return null
+	
+func _on_puck_release_requested(direction: Vector3, power: float) -> void:
+	if NetworkManager.is_host:
+		puck.release(direction, power)
+	else:
+		NetworkManager.send_puck_release(direction, power)

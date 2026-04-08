@@ -33,8 +33,6 @@ func to_array() -> Array:
 		brake,
 		elevation_up,
 		elevation_down,
-		self_pass,
-		self_shot,
 	]
 
 static func from_array(data: Array) -> InputState:
@@ -51,6 +49,4 @@ static func from_array(data: Array) -> InputState:
 	state.brake = data[12]
 	state.elevation_up = data[13]
 	state.elevation_down = data[14]
-	state.self_pass = data[15]
-	state.self_shot = data[16]
 	return state

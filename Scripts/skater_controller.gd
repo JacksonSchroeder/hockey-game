@@ -60,10 +60,6 @@ enum State {
 # ── Follow Through Tuning ─────────────────────────────────────────────────────
 @export var follow_through_duration: float = 0.15
 
-# ── Self Pass / Shot ──────────────────────────────────────────────────────────
-@export var self_pass_power: float = 12.0
-@export var self_shot_power: float = 30.0
-
 # ── References ────────────────────────────────────────────────────────────────
 var skater: Skater = null
 var puck: Puck = null
@@ -81,27 +77,15 @@ var _prev_blade_pos: Vector3 = Vector3.ZERO
 var _prev_blade_dir: Vector3 = Vector3.ZERO
 var _slapper_charge_timer: float = 0.0
 var last_processed_sequence: int = 0
+var has_puck: bool = false
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 func setup(assigned_skater: Skater, assigned_puck: Puck) -> void:
 	skater = assigned_skater
 	puck = assigned_puck
-	puck.puck_picked_up.connect(_on_puck_picked_up)
-	puck.puck_released.connect(_on_puck_released)
 
 # ── Entry Point ───────────────────────────────────────────────────────────────
 func _process_input(input: InputState, delta: float) -> void:
-	# Self pass / shot
-	if input.self_pass and puck.carrier == null:
-		var dir: Vector3 = (skater.global_position - puck.global_position).normalized()
-		dir.y = 0.0
-		puck.linear_velocity = dir * self_pass_power
-
-	if input.self_shot and puck.carrier == null:
-		var dir: Vector3 = (skater.global_position - puck.global_position).normalized()
-		dir.y = 0.0
-		puck.linear_velocity = dir * self_shot_power
-
 	if input.elevation_up:
 		_is_elevated = true
 	if input.elevation_down:
@@ -127,20 +111,21 @@ func get_network_state() -> Array:
 
 func apply_network_state(_data: Array) -> void:
 	pass  # overridden by RemoteController on client
+	
+signal puck_release_requested(direction: Vector3, power: float)
+
+func _do_release(direction: Vector3, power: float) -> void:
+	puck_release_requested.emit(direction, power)
 
 # ── Puck Signals ──────────────────────────────────────────────────────────────
-func _on_puck_picked_up(carrier: Skater) -> void:
-	if carrier == skater:
-		if _state == State.SLAPPER_CHARGE_WITHOUT_PUCK:
-			_state = State.SLAPPER_CHARGE_WITH_PUCK
-		else:
-			_state = State.SKATING_WITH_PUCK
-		var local_blade: Vector3 = skater.get_blade_position() - skater.shoulder.position
-		_blade_relative_angle = atan2(local_blade.x, -local_blade.z)
-
-func _on_puck_released() -> void:
-	if _state == State.FOLLOW_THROUGH:
-		return
+func on_puck_picked_up_network() -> void:
+	has_puck = true
+	_state = State.SKATING_WITH_PUCK
+	var local_blade: Vector3 = skater.get_blade_position() - skater.shoulder.position
+	_blade_relative_angle = atan2(local_blade.x, -local_blade.z)
+	
+func on_puck_released_network() -> void:
+	has_puck = false
 	_transition_to_skating()
 
 # ── State Machine ─────────────────────────────────────────────────────────────
@@ -177,7 +162,7 @@ func _state_skating_with_puck(input: InputState, delta: float) -> void:
 func _state_wrister_aim(input: InputState, delta: float) -> void:
 	_apply_blade_from_mouse(input, delta)
 
-	if puck.carrier == skater:
+	if has_puck:
 		var blade_delta: Vector3 = skater.get_blade_position() - _prev_blade_pos
 		blade_delta.y = 0.0
 		var dist: float = blade_delta.length()
@@ -243,7 +228,7 @@ func _state_follow_through(delta: float) -> void:
 
 # ── State Helpers ─────────────────────────────────────────────────────────────
 func _transition_to_skating() -> void:
-	if puck.carrier == skater:
+	if has_puck:
 		_state = State.SKATING_WITH_PUCK
 	else:
 		_state = State.SKATING_WITHOUT_PUCK
@@ -262,13 +247,13 @@ func _enter_slapper_charge() -> void:
 	_shot_dir = Vector3.ZERO
 	_upper_body_angle = 0.0
 	skater.set_upper_body_rotation(0.0)
-	if puck.carrier == skater:
+	if has_puck:
 		_state = State.SLAPPER_CHARGE_WITH_PUCK
 	else:
 		_state = State.SLAPPER_CHARGE_WITHOUT_PUCK
 
 func _release_wrister(input: InputState) -> void:
-	if puck.carrier == skater and _shot_dir != Vector3.ZERO:
+	if has_puck:
 		var player_pos: Vector3 = skater.global_position
 		player_pos.y = 0.0
 		var mouse_target: Vector3 = input.mouse_world_pos
@@ -282,7 +267,7 @@ func _release_wrister(input: InputState) -> void:
 			blade_world.y = 0.0
 			var blade_dir: Vector3 = (mouse_target - blade_world).normalized()
 			var y_component: float = wrister_elevation if _is_elevated else 0.0
-			puck.release(Vector3(blade_dir.x, y_component, blade_dir.z).normalized(), quick_shot_power)
+			_do_release(Vector3(blade_dir.x, y_component, blade_dir.z).normalized(), quick_shot_power)
 		else:
 			var power: float = lerpf(min_wrister_power, max_wrister_power, charge_t)
 			var hand_sign: float = -1.0 if skater.is_left_handed else 1.0
@@ -290,13 +275,13 @@ func _release_wrister(input: InputState) -> void:
 			if is_backhand:
 				power *= backhand_power_coefficient
 			var y_component: float = wrister_elevation if _is_elevated else 0.0
-			puck.release(Vector3(_shot_dir.x, y_component, _shot_dir.z).normalized(), power)
+			_do_release(Vector3(_shot_dir.x, y_component, _shot_dir.z).normalized(), power)
 
 	_state = State.FOLLOW_THROUGH
 	_follow_through_timer = follow_through_duration
 
 func _release_slapper(input: InputState) -> void:
-	if puck.carrier == skater:
+	if has_puck:
 		var blade_world: Vector3 = skater.upper_body_to_global(skater.get_blade_position())
 		blade_world.y = 0.0
 		var mouse_target: Vector3 = input.mouse_world_pos
@@ -305,7 +290,7 @@ func _release_slapper(input: InputState) -> void:
 		var charge_t: float = clampf(_slapper_charge_timer / max_slapper_charge_time, 0.0, 1.0)
 		var power: float = lerpf(min_slapper_power, max_slapper_power, charge_t)
 		var y_component: float = slapper_elevation if _is_elevated else 0.0
-		puck.release(Vector3(_shot_dir.x, y_component, _shot_dir.z).normalized(), power)
+		_do_release(Vector3(_shot_dir.x, y_component, _shot_dir.z).normalized(), power)
 
 	_state = State.FOLLOW_THROUGH
 	_follow_through_timer = follow_through_duration
@@ -354,15 +339,15 @@ func _apply_blade_from_mouse(input: InputState, delta: float) -> void:
 	var intended_pos: Vector3 = clamped_target
 	clamped_target = skater.clamp_blade_to_walls(clamped_target)
 
-	if puck.carrier == skater:
+	if has_puck:
 		var squeeze: float = skater.get_wall_squeeze(intended_pos, clamped_target)
 		if squeeze > skater.wall_squeeze_threshold:
 			var wall_normal: Vector3 = skater.get_blade_wall_normal()
 			if wall_normal.length() > 0.0:
-				puck.release(wall_normal.normalized(), 3.0)
+				_do_release(wall_normal.normalized(), 3.0)
 			else:
 				var nudge: Vector3 = skater.global_transform.basis * (-clamped_target.normalized())
-				puck.release(nudge.normalized(), 3.0)
+				_do_release(nudge.normalized(), 3.0)
 
 	skater.set_blade_position(clamped_target)
 	_blade_relative_angle = clamped_angle

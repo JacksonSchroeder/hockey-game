@@ -80,7 +80,8 @@ func _process(delta: float) -> void:
 
 func _broadcast_state() -> void:
 	var state: Array = GameManager.get_world_state()
-	receive_world_state.rpc(state)
+	for peer_id in multiplayer.get_peers():
+		receive_world_state.rpc_id(peer_id, state)
 
 # ── RPCs ──────────────────────────────────────────────────────────────────────
 @rpc("any_peer", "unreliable_ordered")
@@ -109,6 +110,13 @@ func spawn_remote_skater(peer_id: int, slot: int) -> void:
 @rpc("authority", "reliable")
 func sync_existing_players(player_data: Array) -> void:
 	GameManager.sync_existing_players(player_data)
+	
+func send_puck_release(direction: Vector3, power: float) -> void:
+	release_puck.rpc_id(1, direction, power)
+
+@rpc("any_peer", "reliable")
+func release_puck(direction: Vector3, power: float) -> void:
+	GameManager.puck_controller.puck.release(direction, power)
 
 # ── Sending ───────────────────────────────────────────────────────────────────
 func send_slot_assignment(peer_id: int, slot: int) -> void:

@@ -40,7 +40,11 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 - Carrier transitions via reliable RPCs: pickup is server → specific client; release is predicted immediately on client, then RPC to server
 - `_carrier_peer_id` on clients is managed exclusively by `notify_local_pickup/release`, never by world state, to avoid unreliable packet ordering conflicts
 
-**World state layout:** `[peer_id, skater_state_array, peer_id, skater_state_array, ..., puck_position, puck_velocity, puck_carrier_peer_id]`
+**Goalies:**
+- `GoalieController` AI runs on host only (gated by `is_server`). Clients receive state via world broadcast and interpolate with a 100ms delay using `BufferedGoalieState` — same pattern as remote skaters.
+- Serialized fields: position (x, z), rotation_y, state enum, five_hole_openness. Clients reconstruct body configs locally from those values.
+
+**World state layout:** `[peer_id, skater_state_array, ..., puck_position, puck_velocity, puck_carrier_peer_id, goalie0_state[5], goalie1_state[5]]`
 
 ## Key Files
 
@@ -60,6 +64,8 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 | `constants.gd` | Shared constants: network rates, physics tick, ICE_FRICTION, rink geometry |
 | `buffered_skater_state.gd` | Timestamped SkaterNetworkState for interpolation buffer |
 | `buffered_puck_state.gd` | Timestamped PuckNetworkState for interpolation buffer |
+| `buffered_goalie_state.gd` | Timestamped GoalieNetworkState for interpolation buffer |
+| `goalie_network_state.gd` | Serializable goalie state: position, rotation, state enum, five_hole_openness |
 
 ## Code Conventions
 
@@ -78,5 +84,4 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 ## Known Issues / Planned Work
 
 - **Ice friction not applied correctly:** `hockey_rink.gd` uses `col.set_meta("physics_material_override", phys_mat)` on a `CollisionShape3D`, which does nothing. The physics material needs to be set on a dedicated child `StaticBody3D` for the ice surface. `Constants.ICE_FRICTION = 0.01` is the intended value and is already used in puck trajectory prediction.
-- **Goalies not networked:** Both clients simulate `GoalieController` independently. Planned: host-only AI, goalie state serialized into world state broadcast, client-side interpolation via `BufferedGoalieState` — same pattern as the puck. Design notes in `docs/specs/GOALIE_AI_SPEC.md`.
 - **IP hardcoded:** `Constants.DEFAULT_IP = "127.0.0.1"` — real network play requires changing this.

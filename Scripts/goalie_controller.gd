@@ -33,10 +33,12 @@ extends Node
 @export var five_hole_t_push_max: float = 0.15
 
 @export var part_lerp_speed: float = 12.0
+@export var interpolation_delay: float = 0.1
 
 # ── References ────────────────────────────────────────────────────────────────
 var goalie: Goalie = null
 var puck: Puck = null
+var is_server: bool = false
 
 # ── Goal Geometry ─────────────────────────────────────────────────────────────
 var _goal_line_z: float = 0.0
@@ -55,10 +57,15 @@ var _five_hole_openness: float = 0.0
 var _shot_timer: float = 0.0
 var _recovery_timer: float = 0.0
 
+# ── Client Interpolation ──────────────────────────────────────────────────────
+var _current_time: float = 0.0
+var _state_buffer: Array[BufferedGoalieState] = []
+
 # ── Setup ─────────────────────────────────────────────────────────────────────
-func setup(assigned_goalie: Goalie, assigned_puck: Puck, assigned_goal_line_z: float) -> void:
+func setup(assigned_goalie: Goalie, assigned_puck: Puck, assigned_goal_line_z: float, assigned_is_server: bool) -> void:
 	goalie = assigned_goalie
 	puck = assigned_puck
+	is_server = assigned_is_server
 	_goal_line_z = assigned_goal_line_z
 	_goal_center_x = 0.0
 	_direction_sign = sign(-_goal_line_z)
@@ -66,11 +73,16 @@ func setup(assigned_goalie: Goalie, assigned_puck: Puck, assigned_goal_line_z: f
 	_target_x = _goal_center_x
 	_current_depth = depth_defensive
 	goalie.set_goalie_rotation_y(PI if _direction_sign == 1 else 0.0)
-	puck.puck_released.connect(_on_puck_released)
+	if is_server:
+		puck.puck_released.connect(_on_puck_released)
 
 # ── Process ───────────────────────────────────────────────────────────────────
 func _physics_process(delta: float) -> void:
 	if goalie == null or puck == null:
+		return
+	if not is_server:
+		_current_time += delta
+		_interpolate()
 		return
 	_update_shot_timer(delta)
 	_update_state(delta)
@@ -283,6 +295,62 @@ func _on_puck_released() -> void:
 	if abs(projected_x - _goal_center_x) > net_half_width + net_margin:
 		return
 	_shot_timer = reaction_delay
+
+# ── State Serialization ───────────────────────────────────────────────────────
+func get_state() -> Array:
+	var s := GoalieNetworkState.new()
+	s.position_x = goalie.global_position.x
+	s.position_z = goalie.global_position.z
+	s.rotation_y = goalie.get_goalie_rotation_y()
+	s.state_enum = _state as int
+	s.five_hole_openness = _five_hole_openness
+	return s.to_array()
+
+func apply_state(network_state: GoalieNetworkState) -> void:
+	if is_server:
+		return
+	var buffered := BufferedGoalieState.new()
+	buffered.timestamp = _current_time
+	buffered.state = network_state
+	_state_buffer.append(buffered)
+	if _state_buffer.size() > 10:
+		_state_buffer.pop_front()
+
+func _interpolate() -> void:
+	var render_time: float = _current_time - interpolation_delay
+	if _state_buffer.size() < 2:
+		return
+	var from_state: BufferedGoalieState = null
+	var to_state: BufferedGoalieState = null
+	for i in range(_state_buffer.size() - 1):
+		var a: BufferedGoalieState = _state_buffer[i]
+		var b: BufferedGoalieState = _state_buffer[i + 1]
+		if a.timestamp <= render_time and render_time <= b.timestamp:
+			from_state = a
+			to_state = b
+			break
+	if from_state == null or to_state == null:
+		_apply_network_state(_state_buffer.back().state)
+		return
+	var t: float = clampf(
+		(render_time - from_state.timestamp) / (to_state.timestamp - from_state.timestamp),
+		0.0, 1.0)
+	var interpolated := GoalieNetworkState.new()
+	interpolated.position_x = lerpf(from_state.state.position_x, to_state.state.position_x, t)
+	interpolated.position_z = lerpf(from_state.state.position_z, to_state.state.position_z, t)
+	interpolated.rotation_y = lerp_angle(from_state.state.rotation_y, to_state.state.rotation_y, t)
+	interpolated.five_hole_openness = lerpf(from_state.state.five_hole_openness, to_state.state.five_hole_openness, t)
+	interpolated.state_enum = to_state.state.state_enum
+	_apply_network_state(interpolated)
+	while _state_buffer.size() > 2 and _state_buffer[1].timestamp < render_time:
+		_state_buffer.pop_front()
+
+func _apply_network_state(s: GoalieNetworkState) -> void:
+	goalie.set_goalie_position(s.position_x, s.position_z)
+	goalie.set_goalie_rotation_y(s.rotation_y)
+	_five_hole_openness = s.five_hole_openness
+	var config := _get_config(s.state_enum as State)
+	goalie.apply_body_config(config, 1.0)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 func _is_puck_behind_goal() -> bool:

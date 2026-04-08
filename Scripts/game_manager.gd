@@ -10,6 +10,7 @@ const REMOTE_CONTROLLER_SCENE: PackedScene = preload("res://Scenes/RemoteControl
 # ── Game State ────────────────────────────────────────────────────────────────
 var puck: Puck = null
 var goalies: Array = []
+var goalie_controllers: Array[GoalieController] = []
 var players: Dictionary = {}  # peer_id -> PlayerRecord
 var _next_slot: int = 1       # host is always slot 0
 
@@ -91,11 +92,13 @@ func _spawn_goalies() -> void:
 	var bottom_controller := GoalieController.new()
 	get_tree().current_scene.add_child(top_controller)
 	get_tree().current_scene.add_child(bottom_controller)
-	top_controller.setup(top, puck, -Constants.GOAL_LINE_Z)
-	bottom_controller.setup(bottom, puck, Constants.GOAL_LINE_Z)
+	top_controller.setup(top, puck, -Constants.GOAL_LINE_Z, NetworkManager.is_host)
+	bottom_controller.setup(bottom, puck, Constants.GOAL_LINE_Z, NetworkManager.is_host)
 
 	goalies.append(top)
 	goalies.append(bottom)
+	goalie_controllers.append(top_controller)
+	goalie_controllers.append(bottom_controller)
 
 func _spawn_local_player(peer_id: int, slot: int) -> void:
 	var record := PlayerRecord.new(peer_id, slot, true)
@@ -139,11 +142,22 @@ func get_world_state() -> Array:
 		state.append(peer_id)
 		state.append(record.controller.get_network_state())
 	state.append_array(puck_controller.get_state())
+	for gc: GoalieController in goalie_controllers:
+		state.append_array(gc.get_state())
 	return state
 
 func apply_world_state(state: Array) -> void:
+	const GOALIE_STATE_SIZE: int = 5
+	const PUCK_STATE_SIZE: int = 3
+	var goalie_offset: int = state.size() - goalie_controllers.size() * GOALIE_STATE_SIZE
+	var puck_offset: int = goalie_offset - PUCK_STATE_SIZE
+	_apply_skater_states(state, puck_offset)
+	_apply_puck_state(state, puck_offset)
+	_apply_goalie_states(state, goalie_offset, GOALIE_STATE_SIZE)
+
+func _apply_skater_states(state: Array, end: int) -> void:
 	var i: int = 0
-	while i < state.size() - 3:
+	while i < end:
 		var peer_id: int = state[i]
 		var skater_state: Array = state[i + 1]
 		i += 2
@@ -153,14 +167,20 @@ func apply_world_state(state: Array) -> void:
 		var skater_network_state := SkaterNetworkState.from_array(skater_state)
 		if record.is_local:
 			(record.controller as LocalController).reconcile(skater_network_state)
-			continue
-		record.controller.apply_network_state(skater_network_state)
+		else:
+			record.controller.apply_network_state(skater_network_state)
 
-	# Puck state
+func _apply_puck_state(state: Array, offset: int) -> void:
 	if puck_controller == null:
 		return
-	var puck_state := PuckNetworkState.from_array([state[i], state[i + 1], state[i + 2]])
+	var puck_state := PuckNetworkState.from_array(state.slice(offset, offset + 3))
 	puck_controller.apply_state(puck_state)
+
+func _apply_goalie_states(state: Array, offset: int, stride: int) -> void:
+	for gi: int in range(goalie_controllers.size()):
+		var start: int = offset + gi * stride
+		var goalie_net_state := GoalieNetworkState.from_array(state.slice(start, start + stride))
+		goalie_controllers[gi].apply_state(goalie_net_state)
 
 # ── Accessors ─────────────────────────────────────────────────────────────────
 func get_puck() -> Puck:

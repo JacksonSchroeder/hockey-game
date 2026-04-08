@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://53nk80p1ukjl"]
+[gd_scene format=3 uid="uid://53nk80p1ukjl"]
 
 [ext_resource type="Script" uid="uid://c4c2muuy6y6r7" path="res://Scripts/skater.gd" id="1_7f3a6"]
 
@@ -39,40 +39,40 @@ albedo_color = Color(0, 0, 0, 1)
 material = SubResource("StandardMaterial3D_50glp")
 size = Vector3(0.6, 1, 0.4)
 
-[node name="Skater" type="CharacterBody3D"]
+[node name="Skater" type="CharacterBody3D" unique_id=15417559]
 script = ExtResource("1_7f3a6")
 blade_height = -0.85
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=76426733]
 shape = SubResource("CylinderShape3D_r0du0")
 
-[node name="StickRaycast" type="RayCast3D" parent="."]
+[node name="StickRaycast" type="RayCast3D" parent="." unique_id=1069426634]
 
-[node name="UpperBody" type="Node3D" parent="."]
+[node name="UpperBody" type="Node3D" parent="." unique_id=1694959721]
 
-[node name="Blade" type="Marker3D" parent="UpperBody"]
+[node name="Blade" type="Marker3D" parent="UpperBody" unique_id=1834082536]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.5)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="UpperBody/Blade"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="UpperBody/Blade" unique_id=56105214]
 mesh = SubResource("BoxMesh_rgh2o")
 
-[node name="UpperBodyMesh" type="MeshInstance3D" parent="UpperBody"]
+[node name="UpperBodyMesh" type="MeshInstance3D" parent="UpperBody" unique_id=195925634]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 mesh = SubResource("BoxMesh_50glp")
 
-[node name="DirectionIndicator" type="MeshInstance3D" parent="UpperBody"]
+[node name="DirectionIndicator" type="MeshInstance3D" parent="UpperBody" unique_id=1342161336]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.25)
 mesh = SubResource("BoxMesh_r150o")
 skeleton = NodePath("../../..")
 
-[node name="StickMesh" type="MeshInstance3D" parent="UpperBody"]
+[node name="StickMesh" type="MeshInstance3D" parent="UpperBody" unique_id=1045205501]
 mesh = SubResource("BoxMesh_bmxlf")
 
-[node name="Shoulder" type="Marker3D" parent="UpperBody"]
+[node name="Shoulder" type="Marker3D" parent="UpperBody" unique_id=1764989628]
 
-[node name="LowerBody" type="Node3D" parent="."]
+[node name="LowerBody" type="Node3D" parent="." unique_id=2124479063]
 
-[node name="LowerBodyMesh" type="MeshInstance3D" parent="LowerBody"]
+[node name="LowerBodyMesh" type="MeshInstance3D" parent="LowerBody" unique_id=868835872]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
 mesh = SubResource("BoxMesh_vy5pj")
 skeleton = NodePath("../..")

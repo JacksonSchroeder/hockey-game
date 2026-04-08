@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://bu5a1k2dpj8ot"]
+[gd_scene format=3 uid="uid://bu5a1k2dpj8ot"]
 
 [ext_resource type="Script" uid="uid://hxvqvacak3bm" path="res://Scripts/goalie.gd" id="1_fbmg1"]
 
@@ -62,53 +62,53 @@ albedo_color = Color(0.729173, 0.661791, 0.652969, 1)
 material = SubResource("StandardMaterial3D_udd7f")
 size = Vector3(0.5, 0.04, 0.04)
 
-[node name="Goalie" type="Node3D"]
+[node name="Goalie" type="Node3D" unique_id=1555786498]
 script = ExtResource("1_fbmg1")
 
-[node name="LeftPad" type="StaticBody3D" parent="."]
+[node name="LeftPad" type="StaticBody3D" parent="." unique_id=1190163544]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LeftPad"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LeftPad" unique_id=1872238537]
 shape = SubResource("BoxShape3D_fbmg1")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LeftPad"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LeftPad" unique_id=1344852839]
 mesh = SubResource("BoxMesh_168ps")
 
-[node name="RightPad" type="StaticBody3D" parent="."]
+[node name="RightPad" type="StaticBody3D" parent="." unique_id=1435961568]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="RightPad"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RightPad" unique_id=1459539296]
 shape = SubResource("BoxShape3D_jpvxq")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="RightPad"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="RightPad" unique_id=1504969139]
 mesh = SubResource("BoxMesh_0fnhx")
 
-[node name="Body" type="StaticBody3D" parent="."]
+[node name="Body" type="StaticBody3D" parent="." unique_id=1962591082]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body" unique_id=981675903]
 shape = SubResource("BoxShape3D_e8rcv")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Body"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Body" unique_id=1473603885]
 mesh = SubResource("BoxMesh_cwmwh")
 
-[node name="Glove" type="StaticBody3D" parent="."]
+[node name="Glove" type="StaticBody3D" parent="." unique_id=304258065]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Glove"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Glove" unique_id=1294887346]
 shape = SubResource("BoxShape3D_8k2b8")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Glove"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Glove" unique_id=32463217]
 mesh = SubResource("BoxMesh_f2adc")
 
-[node name="Blocker" type="StaticBody3D" parent="."]
+[node name="Blocker" type="StaticBody3D" parent="." unique_id=415853721]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Blocker"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Blocker" unique_id=1315615311]
 shape = SubResource("BoxShape3D_waq38")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Blocker"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Blocker" unique_id=730862037]
 mesh = SubResource("BoxMesh_n2fuc")
 
-[node name="Stick" type="StaticBody3D" parent="."]
+[node name="Stick" type="StaticBody3D" parent="." unique_id=1532137830]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Stick"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Stick" unique_id=988991342]
 shape = SubResource("BoxShape3D_6gje0")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Stick"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Stick" unique_id=604917460]
 mesh = SubResource("BoxMesh_6fows")

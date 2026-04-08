@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://c545b8jaty5b7"]
+[gd_scene format=3 uid="uid://c545b8jaty5b7"]
 
 [ext_resource type="PhysicsMaterial" uid="uid://bo58ocxbodjpo" path="res://Physics/boards.tres" id="1_kln2b"]
 [ext_resource type="Script" uid="uid://c5pf6p0nivh61" path="res://Scripts/hockey_rink.gd" id="5_v1gob"]
@@ -10,9 +10,9 @@ background_color = Color(0.154356, 0.226984, 0.325503, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.784388, 0.846868, 0.878503, 1)
 
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node3D" unique_id=565254608]
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1851327814]
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 20, 0)
 light_energy = 0.6
 light_indirect_energy = 0.0
@@ -20,10 +20,10 @@ light_specular = 0.0
 directional_shadow_mode = 0
 sky_mode = 1
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=333867525]
 environment = SubResource("Environment_rxg2q")
 
-[node name="Rink" type="StaticBody3D" parent="."]
+[node name="Rink" type="StaticBody3D" parent="." unique_id=2100473277]
 physics_material_override = ExtResource("1_kln2b")
 script = ExtResource("5_v1gob")
 wall_height = 2.0
@@ -34,5 +34,5 @@ red_line_color = Color(1, 0.425788, 0.357085, 1)
 blue_line_color = Color(0.502817, 0.663302, 1, 1)
 ice_friction = 0.01
 
-[node name="Goals" type="StaticBody3D" parent="."]
+[node name="Goals" type="StaticBody3D" parent="." unique_id=1648202477]
 script = ExtResource("7_jw32o")

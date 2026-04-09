@@ -99,7 +99,13 @@ func _add_ice(half_l: float) -> void:
 	
 	var img = Image.create(img_w, img_h, false, Image.FORMAT_RGBA8)
 	img.fill(ice_color)
-	
+
+	# Goalie creases — drawn before lines so lines render on top
+	var crease_goal_z: int = int((half_l - 3.4) * _px_per_meter)
+	var crease_color: Color = Color(0.7, 0.85, 1.0)
+	_draw_crease_fill(img, img_w / 2.0, img_h / 2.0 - crease_goal_z, 1, crease_color)
+	_draw_crease_fill(img, img_w / 2.0, img_h / 2.0 + crease_goal_z, -1, crease_color)
+
 	# Line widths in pixels
 	var thick_line = int(0.3 * _px_per_meter)  # 30cm for center/blue lines
 	var thin_line = int(0.15 * _px_per_meter)   # 15cm for goal lines, circles  # 5cm for goal lines, circles
@@ -122,7 +128,11 @@ func _add_ice(half_l: float) -> void:
 	var goal_z = int((half_l - 3.4) * _px_per_meter)
 	_draw_h_line(img, img_h / 2.0 - goal_z, thin_line, red_line_color)
 	_draw_h_line(img, img_h / 2.0 + goal_z, thin_line, red_line_color)
-	
+
+	# Crease arc outlines (drawn after goal lines so arcs sit on top)
+	_draw_crease_arc(img, img_w / 2.0, img_h / 2.0 - goal_z, 1, thin_line, red_line_color)
+	_draw_crease_arc(img, img_w / 2.0, img_h / 2.0 + goal_z, -1, thin_line, red_line_color)
+
 	# Center ice circle (radius 4.5m)
 	_draw_circle(img, img_w / 2.0, img_h / 2.0, int(4.5 * _px_per_meter), thin_line, blue_line_color)
 	
@@ -175,18 +185,20 @@ func _add_ice(half_l: float) -> void:
 	mesh_instance.material_override = mat
 	add_child(mesh_instance)
 	
-	# Ice collision with its own physics material
-	var col = CollisionShape3D.new()
-	var shape = BoxShape3D.new()
+	# Ice collision — needs its own StaticBody3D so physics_material_override applies
+	var ice_body := StaticBody3D.new()
+	var phys_mat := PhysicsMaterial.new()
+	phys_mat.friction = ice_friction
+	phys_mat.bounce = 0.0
+	ice_body.physics_material_override = phys_mat
+	add_child(ice_body)
+
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
 	shape.size = Vector3(rink_width, 0.01, rink_length)
 	col.shape = shape
 	col.position = Vector3(0, -0.005, 0)
-	add_child(col)
-	
-	var phys_mat = PhysicsMaterial.new()
-	phys_mat.friction = ice_friction
-	phys_mat.bounce = 0.0
-	col.set_meta("physics_material_override", phys_mat)
+	ice_body.add_child(col)
 
 func _draw_h_line(img: Image, y: int, thickness: int, color: Color) -> void:
 	var half_t = thickness / 2.0
@@ -212,6 +224,49 @@ func _draw_filled_circle(img: Image, cx: int, cy: int, radius: int, color: Color
 				var dist = sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy))
 				if dist <= radius:
 					img.set_pixel(px, py, color)
+
+func _draw_crease_fill(img: Image, cx: float, goal_y: float, toward_center: int, color: Color) -> void:
+	# NHL crease: D-shape — arc radius 6 ft (1.83m) from goal center, capped at 4 ft (1.22m)
+	# either side of center (8 ft / 2.44m total width, 1 ft outside each post).
+	# Straight sides run 4.5 ft (1.37m) from the goal line; arc connects their tops.
+	var arc_r: float = 1.83 * _px_per_meter
+	var half_w: float = 1.22 * _px_per_meter
+	var r_sq: float = arc_r * arc_r
+	var search: int = int(arc_r) + 2
+	for py in range(int(goal_y) - search, int(goal_y) + search + 1):
+		for px in range(int(cx) - search, int(cx) + search + 1):
+			if px < 0 or px >= img.get_width() or py < 0 or py >= img.get_height():
+				continue
+			var dx: float = px - cx
+			var dy: float = (py - goal_y) * toward_center
+			if dy >= 0.0 and abs(dx) <= half_w and dx * dx + dy * dy <= r_sq:
+				img.set_pixel(px, py, color)
+
+func _draw_crease_arc(img: Image, cx: float, goal_y: float, toward_center: int, thickness: int, color: Color) -> void:
+	# Curved arc (capped at crease half-width) + two straight side lines
+	var arc_r: float = 1.83 * _px_per_meter
+	var half_w: float = 1.22 * _px_per_meter
+	var straight_depth: float = 1.37 * _px_per_meter  # where sides meet the arc
+	var half_t: float = thickness / 2.0
+	var r_outer: float = arc_r + half_t
+	var r_inner: float = arc_r - half_t
+	var search: int = int(r_outer) + 2
+	for py in range(int(goal_y) - search, int(goal_y) + search + 1):
+		for px in range(int(cx) - search, int(cx) + search + 1):
+			if px < 0 or px >= img.get_width() or py < 0 or py >= img.get_height():
+				continue
+			var dx: float = px - cx
+			var dy: float = (py - goal_y) * toward_center
+			if dy < 0.0:
+				continue
+			var dist: float = sqrt(dx * dx + dy * dy)
+			# Curved portion of the D
+			if abs(dx) <= half_w and dist >= r_inner and dist <= r_outer:
+				img.set_pixel(px, py, color)
+				continue
+			# Straight side lines at x = ±half_w, from goal line to where they meet the arc
+			if dy <= straight_depth and abs(abs(dx) - half_w) <= half_t:
+				img.set_pixel(px, py, color)
 
 func _add_wall(pos: Vector3, size: Vector3) -> void:
 	var mesh_instance = MeshInstance3D.new()

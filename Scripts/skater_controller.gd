@@ -109,7 +109,7 @@ func get_network_state() -> Array:
 	state.last_processed_sequence = last_processed_sequence
 	return state.to_array()
 
-func apply_network_state(_state: SkaterNetworkState) -> void:
+func apply_network_state(state: SkaterNetworkState) -> void:
 	pass  # overridden by RemoteController on client
 	
 signal puck_release_requested(direction: Vector3, power: float)

@@ -94,5 +94,4 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 
 ## Known Issues / Planned Work
 
-- **Ice friction not applied correctly:** `hockey_rink.gd` uses `col.set_meta("physics_material_override", phys_mat)` on a `CollisionShape3D`, which does nothing. The physics material needs to be set on a dedicated child `StaticBody3D` for the ice surface. `Constants.ICE_FRICTION = 0.01` is the intended value and is already used in puck trajectory prediction.
 - **Clients keep stale remote skaters on disconnect:** when a non-host player leaves, the host cleans up but has no mechanism to notify other clients. Low priority for 1v1, matters for 3v3.

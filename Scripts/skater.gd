@@ -20,10 +20,14 @@ extends CharacterBody3D
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
 var _facing: Vector2 = Vector2.DOWN
+var is_elevated: bool = false
+var blade_world_velocity: Vector3 = Vector3.ZERO
+var _prev_blade_world_pos: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	var hand_sign: float = -1.0 if is_left_handed else 1.0
 	shoulder.position = Vector3(hand_sign * shoulder_offset, 0.0, 0.0)
+	_prev_blade_world_pos = upper_body.to_global(blade.position)
 	
 	var blade_area = Area3D.new()
 	blade_area.name = "BladeArea"
@@ -39,7 +43,10 @@ func _ready() -> void:
 	shoulder.position = Vector3(hand_sign * shoulder_offset, 0.0, 0.0)
 	blade_area.position = Vector3.ZERO
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	var blade_world_pos: Vector3 = upper_body.to_global(blade.position)
+	blade_world_velocity = (blade_world_pos - _prev_blade_world_pos) / delta
+	_prev_blade_world_pos = blade_world_pos
 	move_and_slide()
 
 # ── Facing ────────────────────────────────────────────────────────────────────
@@ -54,6 +61,14 @@ func get_facing() -> Vector2:
 # ── Blade ─────────────────────────────────────────────────────────────────────
 func set_blade_position(pos: Vector3) -> void:
 	blade.position = pos
+	# Rotate blade (and its children: mesh, BladeArea) to face along the shaft.
+	# Use horizontal projection so the blade stays upright despite blade_height offset.
+	var blade_world: Vector3 = upper_body.to_global(pos)
+	var shoulder_world: Vector3 = upper_body.to_global(shoulder.position)
+	var shaft_horiz: Vector3 = blade_world - shoulder_world
+	shaft_horiz.y = 0.0
+	if shaft_horiz.length() > 0.001:
+		blade.look_at(blade_world + shaft_horiz.normalized(), Vector3.UP)
 
 func get_blade_position() -> Vector3:
 	return blade.position

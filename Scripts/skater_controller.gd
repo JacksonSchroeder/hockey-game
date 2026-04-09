@@ -91,6 +91,7 @@ func _process_input(input: InputState, delta: float) -> void:
 		_is_elevated = true
 	if input.elevation_down:
 		_is_elevated = false
+	skater.is_elevated = _is_elevated
 
 	_apply_movement(input, delta)
 	_apply_facing(input, delta)

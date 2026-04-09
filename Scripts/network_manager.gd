@@ -148,6 +148,13 @@ func send_puck_picked_up(peer_id: int) -> void:
 func notify_puck_picked_up() -> void:
 	GameManager.on_local_player_picked_up_puck()
 
+func send_puck_stolen(victim_peer_id: int) -> void:
+	notify_puck_stolen.rpc_id(victim_peer_id)
+
+@rpc("authority", "reliable")
+func notify_puck_stolen() -> void:
+	GameManager.on_local_player_puck_stolen()
+
 func send_puck_release(direction: Vector3, power: float) -> void:
 	release_puck.rpc_id(1, direction, power)
 

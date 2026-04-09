@@ -3,6 +3,7 @@ extends RigidBody3D
 
 signal puck_picked_up(carrier: Skater)
 signal puck_released()
+signal puck_stripped(ex_carrier: Skater)
 
 @export var max_speed: float = 30.0
 @export var reattach_cooldown: float = 0.5
@@ -12,10 +13,14 @@ signal puck_released()
 @export var deflect_blend: float = 0.5
 @export var deflect_speed_retain: float = 0.7
 @export var deflect_cooldown: float = 0.3
+@export var deflect_elevation_angle: float = 35.0
+@export var poke_strip_speed: float = 6.0
+@export var poke_carrier_vel_blend: float = 0.5
+@export var poke_checker_cooldown: float = 0.1
 
 var carrier: Skater = null
 var pickup_locked: bool = false
-var _cooldown_timer: float = 0.0
+var _cooldown_timers: Dictionary = {}  # Skater -> float
 var _is_server: bool = false
 
 func _ready() -> void:
@@ -65,63 +70,147 @@ func clear_carrier() -> void:
 	carrier = null
 	freeze = false
 
+# ── Cooldown Helpers ──────────────────────────────────────────────────────────
+func _is_on_cooldown(skater: Skater) -> bool:
+	return _cooldown_timers.get(skater, 0.0) > 0.0
+
+func _set_cooldown(skater: Skater, duration: float) -> void:
+	_cooldown_timers[skater] = duration
+
 # ── Physics ───────────────────────────────────────────────────────────────────
+func _get_skater_from_area(area: Area3D) -> Skater:
+	var node: Node = area
+	while node and not node is Skater:
+		node = node.get_parent()
+	return node as Skater
+
 func _on_blade_entered(area: Area3D) -> void:
 	if not _is_server:
-		return
-	if carrier != null:
-		return
-	if _cooldown_timer > 0.0:
 		return
 	if pickup_locked:
 		return
 
-	var node = area
-	while node and not node is Skater:
-		node = node.get_parent()
-
-	if not node:
+	var skater: Skater = _get_skater_from_area(area)
+	if skater == null:
 		return
 
-	var speed = linear_velocity.length()
+	if carrier != null:
+		# Poke check — cooldown does not gate this; opponents can always attempt
+		if skater == carrier:
+			return
+		var carrier_team: Team = GameManager.get_skater_team(carrier)
+		var checker_team: Team = GameManager.get_skater_team(skater)
+		if carrier_team != null and checker_team != null and carrier_team == checker_team:
+			return
+		_poke_check(skater)
+		return
 
-	if speed <= pickup_max_speed:
-		carrier = node
-		puck_picked_up.emit(node)
-	elif speed >= deflect_min_speed:
-		_deflect_off_blade(area)
+	# Loose puck — respect per-skater cooldown
+	if _is_on_cooldown(skater):
+		return
+
+	var puck_speed: float = linear_velocity.length()
+	if puck_speed <= pickup_max_speed:
+		carrier = skater
+		puck_picked_up.emit(skater)
+		return
+
+	# Relative velocity determines catch vs deflect:
+	# moving blade backward with puck = low relative speed = catch
+	# stationary blade hit by fast puck = high relative speed = deflect
+	var relative_speed: float = (linear_velocity - skater.blade_world_velocity).length()
+	if relative_speed >= deflect_min_speed:
+		_deflect_off_blade(skater)
 	else:
-		carrier = node
-		puck_picked_up.emit(node)
+		carrier = skater
+		puck_picked_up.emit(skater)
 
-func _deflect_off_blade(area: Area3D) -> void:
-	var blade_forward = area.global_transform.basis.z
-	blade_forward.y = 0.0
-	blade_forward = blade_forward.normalized()
-	var current_dir = linear_velocity.normalized()
-	var new_dir = current_dir.lerp(blade_forward, deflect_blend).normalized()
-	linear_velocity = new_dir * linear_velocity.length() * deflect_speed_retain
-	_cooldown_timer = deflect_cooldown
+func _deflect_off_blade(skater: Skater) -> void:
+	# Use the blade-to-puck contact direction as the reflect normal (billiard ball
+	# style). The blade area is a sphere with no orientation, so this is the only
+	# physically meaningful normal — it's where the puck was relative to the blade
+	# center when overlap was detected.
+	var blade_world: Vector3 = skater.upper_body_to_global(skater.get_blade_position())
+	blade_world.y = 0.0
+	var puck_pos: Vector3 = global_position
+	puck_pos.y = 0.0
+	var contact_normal: Vector3 = puck_pos - blade_world
+	if contact_normal.length() < 0.001:
+		contact_normal = -skater.global_transform.basis.z  # fallback: bounce forward
+	contact_normal = contact_normal.normalized()
+
+	var horiz_vel: Vector3 = linear_velocity
+	horiz_vel.y = 0.0
+	var speed: float = linear_velocity.length()
+
+	var reflected: Vector3 = horiz_vel - 2.0 * horiz_vel.dot(contact_normal) * contact_normal
+	var new_dir: Vector3 = horiz_vel.normalized().lerp(reflected.normalized(), deflect_blend).normalized()
+
+	if skater.is_elevated:
+		var elev_rad: float = deg_to_rad(deflect_elevation_angle)
+		new_dir = Vector3(
+			new_dir.x * cos(elev_rad),
+			sin(elev_rad),
+			new_dir.z * cos(elev_rad)
+		).normalized()
+
+	linear_velocity = new_dir * speed * deflect_speed_retain
+	_set_cooldown(skater, deflect_cooldown)
+
+func _poke_check(checker_skater: Skater) -> void:
+	var ex_carrier: Skater = carrier  # capture before clear_carrier()
+
+	var checker_vel: Vector3 = checker_skater.blade_world_velocity
+	checker_vel.y = 0.0
+	var carrier_vel: Vector3 = ex_carrier.blade_world_velocity
+	carrier_vel.y = 0.0
+
+	var strip_dir: Vector3
+	if checker_vel.length() > 0.5:
+		# Blend checker momentum with carrier momentum contribution
+		strip_dir = checker_vel + carrier_vel * poke_carrier_vel_blend
+	else:
+		# No checker blade momentum — push puck away from checker
+		strip_dir = ex_carrier.global_position - checker_skater.global_position
+
+	strip_dir.y = 0.0
+	if strip_dir.length() > 0.001:
+		strip_dir = strip_dir.normalized()
+	else:
+		strip_dir = Vector3(randf_range(-1.0, 1.0), 0.0, randf_range(-1.0, 1.0)).normalized()
+
+	clear_carrier()
+	linear_velocity = strip_dir * poke_strip_speed
+	_set_cooldown(ex_carrier, reattach_cooldown)
+	_set_cooldown(checker_skater, poke_checker_cooldown)
+
+	puck_stripped.emit(ex_carrier)
+	puck_released.emit()
 
 func release(direction: Vector3, power: float) -> void:
+	var ex_carrier: Skater = carrier
 	clear_carrier()
 	if direction.y > 0:
 		position.y = ice_height + 0.1
 	linear_velocity = direction * power
-	_cooldown_timer = reattach_cooldown
+	if ex_carrier != null:
+		_set_cooldown(ex_carrier, reattach_cooldown)
 	puck_released.emit()
 
 func drop() -> void:
+	var ex_carrier: Skater = carrier
 	clear_carrier()
 	linear_velocity = Vector3.ZERO
+	if ex_carrier != null:
+		_set_cooldown(ex_carrier, reattach_cooldown)
 	puck_released.emit()
 
 func reset() -> void:
 	clear_carrier()
+	_cooldown_timers.clear()
 	linear_velocity = Vector3.ZERO
 	angular_velocity = Vector3.ZERO
 	global_position = Vector3(0, ice_height, 0)
-	_cooldown_timer = 0.0
 	puck_released.emit()
 
 func _is_airborne() -> bool:
@@ -130,15 +219,19 @@ func _is_airborne() -> bool:
 func _physics_process(delta: float) -> void:
 	if not _is_server:
 		return
-		
+
+	# Tick per-skater cooldowns regardless of carrier state
+	for skater: Skater in _cooldown_timers.keys():
+		_cooldown_timers[skater] -= delta
+		if _cooldown_timers[skater] <= 0.0:
+			_cooldown_timers.erase(skater)
+
 	if carrier != null:
 		freeze = true
 		var blade_node = carrier.get_node("UpperBody/Blade")
 		global_position = blade_node.global_position
 		global_position.y = ice_height
 	else:
-		if _cooldown_timer > 0.0:
-			_cooldown_timer -= delta
 		if linear_velocity.length() > max_speed:
 			linear_velocity = linear_velocity.normalized() * max_speed
 		if _is_airborne():

@@ -23,6 +23,7 @@ func setup(assigned_puck: Puck, assigned_is_server: bool) -> void:
 	if is_server:
 		puck.puck_picked_up.connect(_on_puck_picked_up)
 		puck.puck_released.connect(_on_puck_released)
+		puck.puck_stripped.connect(_on_puck_stripped)
 
 func _physics_process(delta: float) -> void:
 	if puck == null or is_server:
@@ -81,6 +82,15 @@ func _on_puck_released() -> void:
 	if _carrier_peer_id != -1 and GameManager.players.has(_carrier_peer_id):
 		GameManager.players[_carrier_peer_id].controller.on_puck_released_network()
 	_carrier_peer_id = -1
+
+func _on_puck_stripped(ex_carrier: Skater) -> void:
+	if ex_carrier == null:
+		return
+	for peer_id: int in GameManager.players:
+		var record: PlayerRecord = GameManager.players[peer_id]
+		if record.skater == ex_carrier and not record.is_local:
+			NetworkManager.send_puck_stolen(peer_id)
+			return
 
 # ── State Serialization ───────────────────────────────────────────────────────
 func get_state() -> Array:

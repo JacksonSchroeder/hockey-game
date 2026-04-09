@@ -39,8 +39,9 @@ Authoritative host model. The host runs all physics. Clients predict locally and
   1. **Local carrier** — pin puck to local blade position each frame (no lag)
   2. **Trajectory prediction** — integrate velocity with `Constants.ICE_FRICTION` after local release, reconcile against server when error exceeds threshold
   3. **Interpolation** — buffer server snapshots, interpolate (all other cases)
-- Carrier transitions via reliable RPCs: pickup is server → specific client; release is predicted immediately on client, then RPC to server
-- `_carrier_peer_id` on clients is managed exclusively by `notify_local_pickup/release`, never by world state, to avoid unreliable packet ordering conflicts
+- Carrier transitions via reliable RPCs: pickup is server → specific client; release is predicted immediately on client, then RPC to server; poke check strip is server → victim client (`notify_puck_stolen`)
+- `_carrier_peer_id` on clients is managed exclusively by `notify_local_pickup/release/puck_stolen`, never by world state, to avoid unreliable packet ordering conflicts
+- **Puck interactions (server-side, `puck.gd`):** relative-velocity catch vs deflect — `(puck_vel - blade_world_vel).length()` vs `deflect_min_speed`; deflect direction = contact normal (blade-to-puck, billiard ball style) reflected with `deflect_blend`; elevation tipping via `skater.is_elevated`; poke check strips on any opposing blade contact while carried; per-skater `_cooldown_timers` dict so ex-carrier has a disadvantage but the other player can pick up immediately
 
 **Goalies:**
 - `GoalieController` AI runs on host only (gated by `is_server`). Clients receive state via world broadcast and interpolate with a 100ms delay using `BufferedGoalieState` — same pattern as remote skaters.
@@ -111,3 +112,4 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 - **Goalie reactive saves not yet implemented:** glove saves, shoulder/body saves, and stick poke coverage are all planned. The stick is currently disabled (`stick_enabled = false`) — it can be re-enabled once it has proper positional behavior rather than acting as a static seal.
 - **Goal phase RPC vs world state race:** if world state delivers `GOAL_SCORED` before the reliable `notify_goal` RPC arrives, the carrier client's puck state won't be cleared until the RPC arrives (typically one round-trip later). `on_puck_released_network` is idempotent so it's safe when the RPC does arrive. Low impact in practice.
 - **No HUD for score/phase yet:** score and phase are tracked and networked but nothing displays them in-game.
+- **Poke check / catch vs deflect thresholds need multiplayer tuning:** `deflect_min_speed` (relative velocity), `poke_strip_speed`, `poke_carrier_vel_blend`, and `poke_checker_cooldown` were set from first principles and need tuning under real network conditions with two players.

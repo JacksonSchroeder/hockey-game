@@ -372,6 +372,13 @@ static func is_dead_puck_phase(phase: GamePhase) -> bool:
 static func movement_locked() -> bool:
 	return is_dead_puck_phase(GameManager._phase)
 
+static func get_skater_team(skater: Skater) -> Team:
+	for peer_id: int in GameManager.players:
+		var record: PlayerRecord = GameManager.players[peer_id]
+		if record.skater == skater:
+			return record.team
+	return null
+
 # ── Accessors ─────────────────────────────────────────────────────────────────
 func get_puck() -> Puck:
 	return puck
@@ -387,6 +394,12 @@ func on_local_player_picked_up_puck() -> void:
 	if record != null:
 		record.controller.on_puck_picked_up_network()
 	puck_controller.notify_local_pickup()
+
+func on_local_player_puck_stolen() -> void:
+	var local_record := get_local_player()
+	if local_record != null:
+		local_record.controller.on_puck_released_network()
+		puck_controller.notify_local_puck_dropped()
 
 func _on_puck_release_requested(direction: Vector3, power: float) -> void:
 	if NetworkManager.is_host:

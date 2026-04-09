@@ -26,6 +26,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify export artifacts
+        run: |
+          echo "=== Archive directory contents ==="
+          ls -la /home/runner/.local/share/godot/archives/ || echo "Archive directory missing!"
+
+          shopt -s nullglob
+          zips=(/home/runner/.local/share/godot/archives/*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "ERROR: No zip archives produced"
+            exit 1
+          fi
+
+          for zip in "${zips[@]}"; do
+            size=$(stat -c%s "$zip")
+            echo "$zip: ${size} bytes"
+            if [ "$size" -lt 1048576 ]; then
+              echo "ERROR: Archive is suspiciously small (< 1MB)"
+              exit 1
+            fi
+            unzip -l "$zip" | grep -q "\.exe" || { echo "ERROR: No .exe found in $zip"; exit 1; }
+          done
+          echo "All archives look good."
+
       - name: Upload Release
         uses: ncipollo/release-action@v1
         with:

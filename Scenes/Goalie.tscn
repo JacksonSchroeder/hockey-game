@@ -3,44 +3,54 @@
 [ext_resource type="Script" uid="uid://hxvqvacak3bm" path="res://Scripts/goalie.gd" id="1_fbmg1"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_fbmg1"]
-size = Vector3(0.28, 0.5, 0.08)
+size = Vector3(0.28, 0.84, 0.15)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cdb6r"]
 albedo_color = Color(0.301269, 0.46915, 0.92892, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_168ps"]
 material = SubResource("StandardMaterial3D_cdb6r")
-size = Vector3(0.28, 0.5, 0.08)
+size = Vector3(0.28, 0.84, 0.15)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_jpvxq"]
-size = Vector3(0.28, 0.5, 0.08)
+size = Vector3(0.28, 0.84, 0.15)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_g4lw1"]
 albedo_color = Color(0.0462734, 0.509017, 0.651184, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_0fnhx"]
 material = SubResource("StandardMaterial3D_g4lw1")
-size = Vector3(0.28, 0.5, 0.08)
+size = Vector3(0.28, 0.84, 0.15)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_e8rcv"]
-size = Vector3(0.48, 0.55, 0.2)
+size = Vector3(0.4, 0.6, 0.25)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fpcta"]
 albedo_color = Color(0.276417, 0.60769, 0.408357, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_cwmwh"]
 material = SubResource("StandardMaterial3D_fpcta")
-size = Vector3(0.48, 0.55, 0.2)
+size = Vector3(0.4, 0.6, 0.25)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cdb6r"]
+size = Vector3(0.22, 0.22, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fbmg1"]
+albedo_color = Color(0.41590622, 0.37959418, 0.80166274, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_jpvxq"]
+material = SubResource("StandardMaterial3D_fbmg1")
+size = Vector3(0.22, 0.22, 0.2)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_8k2b8"]
-size = Vector3(0.25, 0.25, 0.1)
+size = Vector3(0.25, 0.25, 0.15)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mlftn"]
 albedo_color = Color(0.653846, 0.402607, 0.170112, 1)
 
 [sub_resource type="BoxMesh" id="BoxMesh_f2adc"]
 material = SubResource("StandardMaterial3D_mlftn")
-size = Vector3(0.25, 0.25, 0.1)
+size = Vector3(0.25, 0.25, 0.15)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_waq38"]
 size = Vector3(0.2, 0.3, 0.1)
@@ -88,6 +98,14 @@ shape = SubResource("BoxShape3D_e8rcv")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Body" unique_id=1473603885]
 mesh = SubResource("BoxMesh_cwmwh")
+
+[node name="Head" type="StaticBody3D" parent="." unique_id=1016498205]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Head" unique_id=245778333]
+shape = SubResource("BoxShape3D_cdb6r")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Head" unique_id=967665458]
+mesh = SubResource("BoxMesh_jpvxq")
 
 [node name="Glove" type="StaticBody3D" parent="." unique_id=304258065]
 

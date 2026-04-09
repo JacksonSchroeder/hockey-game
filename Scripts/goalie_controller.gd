@@ -28,6 +28,9 @@ extends Node
 @export var net_half_width: float = 0.915
 @export var net_margin: float = 1.0
 
+@export var rvh_depth: float = 0.1
+@export var rvh_post_pad_angle: float = 15.0
+
 @export var five_hole_base: float = 0.02
 @export var five_hole_shuffle_max: float = 0.06
 @export var five_hole_t_push_max: float = 0.15
@@ -104,10 +107,13 @@ func _update_shot_timer(delta: float) -> void:
 func _update_state(delta: float) -> void:
 	if _state != State.STANDING:
 		_shot_timer = 0.0
+	# Convert puck global X into goalie local X. The -Z goal goalie is rotated PI
+	# so its local +X is global -X; multiplying by -_direction_sign corrects for that.
+	var puck_local_x: float = (puck.global_position.x - _goal_center_x) * -_direction_sign
 	match _state:
 		State.STANDING:
 			if _is_puck_behind_goal():
-				_state = State.RVH_LEFT if puck.global_position.x < _goal_center_x else State.RVH_RIGHT
+				_state = State.RVH_LEFT if puck_local_x < 0.0 else State.RVH_RIGHT
 		State.BUTTERFLY:
 			var moving_away: bool = puck.linear_velocity.z * _direction_sign > 0.0
 			if puck.linear_velocity.length() < shot_speed_threshold or moving_away:
@@ -120,18 +126,18 @@ func _update_state(delta: float) -> void:
 		State.RVH_LEFT:
 			if not _is_puck_behind_goal():
 				_state = State.STANDING
-			elif puck.global_position.x >= _goal_center_x:
+			elif puck_local_x >= 0.0:
 				_state = State.RVH_RIGHT
 		State.RVH_RIGHT:
 			if not _is_puck_behind_goal():
 				_state = State.STANDING
-			elif puck.global_position.x < _goal_center_x:
+			elif puck_local_x < 0.0:
 				_state = State.RVH_LEFT
 
 # ── Depth ─────────────────────────────────────────────────────────────────────
 func _update_depth(delta: float) -> void:
 	if _state == State.RVH_LEFT or _state == State.RVH_RIGHT:
-		_current_depth = lerpf(_current_depth, 0.0, depth_speed * delta)
+		_current_depth = lerpf(_current_depth, rvh_depth, depth_speed * delta)
 		return
 	if _state != State.STANDING:
 		return
@@ -163,9 +169,11 @@ func _update_position(delta: float) -> void:
 			_current_x = move_toward(_current_x, _target_x, shuffle_speed * 0.5 * delta)
 			_five_hole_openness = lerpf(_five_hole_openness, 0.0, part_lerp_speed * delta)
 		State.RVH_LEFT:
-			_current_x = move_toward(_current_x, _goal_center_x - net_half_width, rvh_transition_speed * delta)
+			# 0.88 = post pad local x (0.46) + pad half-height when rotated 90° (0.42)
+			# positions the outer edge of the post pad flush with the post
+			_current_x = move_toward(_current_x, _goal_center_x + (net_half_width - 0.88) * _direction_sign, rvh_transition_speed * delta)
 		State.RVH_RIGHT:
-			_current_x = move_toward(_current_x, _goal_center_x + net_half_width, rvh_transition_speed * delta)
+			_current_x = move_toward(_current_x, _goal_center_x - (net_half_width - 0.88) * _direction_sign, rvh_transition_speed * delta)
 	goalie.set_goalie_position(_current_x, _goal_line_z + _direction_sign * _current_depth)
 
 func _update_target_x() -> void:
@@ -219,56 +227,64 @@ func _get_config(state: State) -> GoalieBodyConfig:
 	var c := GoalieBodyConfig.new()
 	match state:
 		State.STANDING:
-			c.left_pad_pos  = Vector3(-0.22 - _five_hole_openness, 0.0, 0.0)
-			c.left_pad_rot  = Vector3(0.0, 0.0,  12.0)
-			c.right_pad_pos = Vector3( 0.22 + _five_hole_openness, 0.0, 0.0)
-			c.right_pad_rot = Vector3(0.0, 0.0, -12.0)
-			c.body_pos      = Vector3(0.0, 0.50, 0.0)
+			c.left_pad_pos  = Vector3(-0.22 - _five_hole_openness, 0.44, -0.20)
+			c.left_pad_rot  = Vector3(0.0, 0.0, -12.0)
+			c.right_pad_pos = Vector3( 0.22 + _five_hole_openness, 0.44, -0.20)
+			c.right_pad_rot = Vector3(0.0, 0.0,  12.0)
+			c.body_pos      = Vector3(0.0,  1.16,  0.0)
 			c.body_rot      = Vector3.ZERO
-			c.blocker_pos   = Vector3(-0.35, 0.43, 0.0)
+			c.head_pos      = Vector3(0.0,  1.69,  0.08)
+			c.head_rot      = Vector3.ZERO
+			c.blocker_pos   = Vector3( 0.38, 1.24, -0.18)
 			c.blocker_rot   = Vector3.ZERO
-			c.glove_pos     = Vector3( 0.40, 0.48, 0.0)
+			c.glove_pos     = Vector3(-0.35, 1.19, -0.18)
 			c.glove_rot     = Vector3.ZERO
-			c.stick_pos     = Vector3(0.0, 0.02, -0.25)
+			c.stick_pos     = Vector3(0.0,  0.02,  -0.25)
 			c.stick_rot     = Vector3.ZERO
 		State.BUTTERFLY:
-			c.left_pad_pos  = Vector3(-0.33, 0.0, 0.0)
-			c.left_pad_rot  = Vector3(0.0, 0.0,  90.0)
-			c.right_pad_pos = Vector3( 0.33, 0.0, 0.0)
-			c.right_pad_rot = Vector3(0.0, 0.0, -90.0)
-			c.body_pos      = Vector3(0.0, 0.28, 0.0)
+			c.left_pad_pos  = Vector3(-0.42, 0.14, -0.20)
+			c.left_pad_rot  = Vector3(0.0, 0.0, -90.0)
+			c.right_pad_pos = Vector3( 0.42, 0.14, -0.20)
+			c.right_pad_rot = Vector3(0.0, 0.0,  90.0)
+			c.body_pos      = Vector3(0.0,  0.46,  0.0)
 			c.body_rot      = Vector3.ZERO
-			c.blocker_pos   = Vector3(-0.40, 0.30, 0.0)
+			c.head_pos      = Vector3(0.0,  0.99,  0.08)
+			c.head_rot      = Vector3.ZERO
+			c.blocker_pos   = Vector3( 0.46, 0.49, -0.18)
 			c.blocker_rot   = Vector3.ZERO
-			c.glove_pos     = Vector3( 0.45, 0.35, 0.0)
+			c.glove_pos     = Vector3(-0.42, 0.44, -0.18)
 			c.glove_rot     = Vector3.ZERO
-			c.stick_pos     = Vector3(0.0, 0.02, -0.30)
+			c.stick_pos     = Vector3(0.0,  0.02,  -0.30)
 			c.stick_rot     = Vector3.ZERO
 		State.RVH_LEFT:
-			c.left_pad_pos  = Vector3(-0.50, 0.0, 0.0)
-			c.left_pad_rot  = Vector3(0.0, 0.0,  90.0)
-			c.right_pad_pos = Vector3(-0.18, 0.0, 0.0)
-			c.right_pad_rot = Vector3(0.0, 0.0,   5.0)
-			c.body_pos      = Vector3(-0.30, 0.42, 0.0)
+			c.left_pad_pos  = Vector3(-0.46, 0.14, 0.0)
+			c.left_pad_rot  = Vector3(0.0, rvh_post_pad_angle, -90.0)
+			c.right_pad_pos = Vector3(-0.05, 0.33, 0.0)
+			c.right_pad_rot = Vector3(0.0, 0.0,  60.0)
+			c.body_pos      = Vector3(-0.52, 0.66,  0.05)
 			c.body_rot      = Vector3.ZERO
-			c.glove_pos     = Vector3(-0.48, 0.45, 0.0)
+			c.head_pos      = Vector3(-0.52, 1.19,  0.08)
+			c.head_rot      = Vector3.ZERO
+			c.glove_pos     = Vector3(-0.62, 0.69, -0.18)
 			c.glove_rot     = Vector3.ZERO
-			c.blocker_pos   = Vector3( 0.0,  0.40, 0.0)
+			c.blocker_pos   = Vector3(-0.10, 0.64, -0.18)
 			c.blocker_rot   = Vector3.ZERO
-			c.stick_pos     = Vector3(-0.25, 0.02, -0.20)
+			c.stick_pos     = Vector3(-0.30, 0.02, -0.20)
 			c.stick_rot     = Vector3.ZERO
 		State.RVH_RIGHT:
-			c.left_pad_pos  = Vector3( 0.18, 0.0, 0.0)
-			c.left_pad_rot  = Vector3(0.0, 0.0,  -5.0)
-			c.right_pad_pos = Vector3( 0.50, 0.0, 0.0)
-			c.right_pad_rot = Vector3(0.0, 0.0, -90.0)
-			c.body_pos      = Vector3( 0.30, 0.42, 0.0)
+			c.right_pad_pos = Vector3( 0.46, 0.14, 0.0)
+			c.right_pad_rot = Vector3(0.0, -rvh_post_pad_angle,  90.0)
+			c.left_pad_pos  = Vector3( 0.05, 0.33, 0.0)
+			c.left_pad_rot  = Vector3(0.0, 0.0, -60.0)
+			c.body_pos      = Vector3( 0.52, 0.66,  0.05)
 			c.body_rot      = Vector3.ZERO
-			c.blocker_pos   = Vector3( 0.48, 0.45, 0.0)
+			c.head_pos      = Vector3( 0.52, 1.19,  0.08)
+			c.head_rot      = Vector3.ZERO
+			c.blocker_pos   = Vector3( 0.62, 0.69, -0.18)
 			c.blocker_rot   = Vector3.ZERO
-			c.glove_pos     = Vector3( 0.0,  0.40, 0.0)
+			c.glove_pos     = Vector3( 0.10, 0.64, -0.18)
 			c.glove_rot     = Vector3.ZERO
-			c.stick_pos     = Vector3( 0.25, 0.02, -0.20)
+			c.stick_pos     = Vector3( 0.30, 0.02, -0.20)
 			c.stick_rot     = Vector3.ZERO
 	if not catches_left:
 		var tmp_pos: Vector3 = c.glove_pos

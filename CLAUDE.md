@@ -8,6 +8,8 @@ Complex features (AI state machines, new systems, architectural changes) are des
 
 **Before every commit:** update this file, `README.md`, and `ARCHITECTURE.md`. New files go in the Key Files table. Completed work moves out of Known Issues (both here and in ARCHITECTURE.md). New known issues get added. README's What's In / Planned sections and ARCHITECTURE's Build Status table should reflect current state.
 
+**Scene files (`.tscn`) are edited by the user, not Claude.** Godot's scene format is error-prone to edit as text — node unique IDs, sub-resource references, and property ordering can silently break the scene. When a task requires scene changes, describe exactly what to add or modify and let the user make the edits in the Godot editor.
+
 ## What This Is
 
 A 3v3 arcade hockey game built in Godot 4.6.2 (GDScript, 3D). Online multiplayer — one player per machine, each with their own camera and local simulation. Prioritizes feel over realism: deep stickhandling, multiple shot types, satisfying puck physics.
@@ -43,6 +45,8 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 **Goalies:**
 - `GoalieController` AI runs on host only (gated by `is_server`). Clients receive state via world broadcast and interpolate with a 100ms delay using `BufferedGoalieState` — same pattern as remote skaters.
 - Serialized fields: position (x, z), rotation_y, state enum, five_hole_openness. Clients reconstruct body configs locally from those values.
+- Seven body parts: LeftPad, RightPad, Body, Head, Glove, Blocker, Stick. Sizes: pads 0.28×0.84×0.15m, body 0.40×0.60×0.25m, head 0.22×0.22×0.20m, glove 0.25×0.25×0.15m, blocker 0.20×0.30×0.10m, stick 0.50×0.04×0.04m.
+- RVH state selection uses goalie-local X (`(puck.x - goal_center_x) * -_direction_sign`) so both goalies pick the correct post despite having opposite world-space rotations. RVH root targets `net_half_width - 0.88` so the post pad outer edge (pad center 0.46 + half-height 0.42) lands flush with the post.
 
 **World state layout:** `[peer_id, skater_state_array, ..., puck_position, puck_velocity, puck_carrier_peer_id, goalie0_state[5], goalie1_state[5]]`
 

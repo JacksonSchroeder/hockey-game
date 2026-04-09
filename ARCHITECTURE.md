@@ -20,7 +20,7 @@ The Rocket League freeplay ceiling is a guiding star: the stickhandling-to-shot 
 - **Puck:** `RigidBody3D` with cylinder collision (radius 0.1m, height 0.05m). PickupZone (`Area3D`, `SphereShape3D` radius 0.5m) for blade proximity detection. Emits `puck_picked_up` and `puck_released` signals. Physics runs server-side only — frozen on clients.
 - **Rink:** `StaticBody3D` with procedurally generated walls, corners, and ice surface via `@tool` script. 60×26m, Z axis is the long axis.
 - **Goals:** `StaticBody3D` with procedurally generated posts, crossbar, and back wall via `@tool` script.
-- **Goalie:** `Node3D` root (`goalie.gd`) with six `StaticBody3D` body parts (LeftPad, RightPad, Body, Glove, Blocker, Stick). A sibling `GoalieController` node drives positioning. Body part positions and rotations lerp between per-state configs each frame.
+- **Goalie:** `Node3D` root (`goalie.gd`) with seven `StaticBody3D` body parts (LeftPad, RightPad, Body, Head, Glove, Blocker, Stick). A sibling `GoalieController` node drives positioning. Body part positions and rotations lerp between per-state configs (`GoalieBodyConfig`) each frame. Part sizes: pads 0.28×0.84×0.15, body 0.40×0.60×0.25, head 0.22×0.22×0.20, glove 0.25×0.25×0.15, blocker 0.20×0.30×0.10, stick 0.50×0.04×0.04. In RVH the goalie root positions so the post pad outer edge is flush with the post (`net_half_width - 0.88`); left/right state selection uses goalie-local X (`direction_sign`) so both goalies behave correctly despite opposite world rotations.
 - **Camera:** `Camera3D` per player. Weighted anchor system — player, puck, mouse, attacking goal. Zoom computed after position clamping.
 
 ---

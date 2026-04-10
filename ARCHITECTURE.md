@@ -233,7 +233,6 @@ Two `Team` objects created at startup. Each owns a `defended_goal` (`HockeyGoal`
 - Soft offsides: speed decays past blue line without puck
 - Soft icing: iced puck placed behind net, defensive team only
 - No formal penalty system — mechanical deterrents preferred
-- Score/phase HUD
 
 ---
 
@@ -242,8 +241,6 @@ Two `Team` objects created at startup. Each owns a `defended_goal` (`HockeyGoal`
 **Clients keep stale remote skaters on disconnect:** when a non-host player leaves mid-game, the host cleans up its own simulation but has no mechanism to notify other connected clients. Their remote skater stays in the scene. Low priority for 1v1.
 
 **Goal phase RPC vs world state race:** if world state delivers `GOAL_SCORED` before the reliable `notify_goal` RPC, the carrier client's puck state won't be cleared until the RPC arrives. `on_puck_released_network` is idempotent so it's safe when the RPC does arrive. Low impact in practice.
-
-**No HUD:** score and phase are tracked and networked but nothing displays them in-game yet.
 
 **Active shot-block stance not yet implemented:** a future input-driven mode will use the same `BodyBlockArea` with lower `body_block_dampen` and a wider stance for deliberate shot-blocking.
 

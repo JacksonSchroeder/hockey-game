@@ -83,6 +83,7 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 | `buffered_puck_state.gd` | Timestamped PuckNetworkState for interpolation buffer |
 | `buffered_goalie_state.gd` | Timestamped GoalieNetworkState for interpolation buffer |
 | `goalie_network_state.gd` | Serializable goalie state: position, rotation, state enum, five_hole_openness |
+| `hud.gd` | Scorebug HUD: connects to `GameManager.score_changed` / `phase_changed`, builds panel programmatically |
 
 ## Code Conventions
 
@@ -111,7 +112,6 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 - **Clients keep stale remote skaters on disconnect:** when a non-host player leaves, the host cleans up but has no mechanism to notify other clients. Low priority for 1v1, matters for 3v3.
 - **Goalie reactive saves not yet implemented:** glove saves, shoulder/body saves, and stick poke coverage are all planned. The stick is currently disabled (`stick_enabled = false`) — it can be re-enabled once it has proper positional behavior rather than acting as a static seal.
 - **Goal phase RPC vs world state race:** if world state delivers `GOAL_SCORED` before the reliable `notify_goal` RPC arrives, the carrier client's puck state won't be cleared until the RPC arrives (typically one round-trip later). `on_puck_released_network` is idempotent so it's safe when the RPC does arrive. Low impact in practice.
-- **No HUD for score/phase yet:** score and phase are tracked and networked but nothing displays them in-game.
 - **Poke check / body check / catch vs deflect thresholds need multiplayer tuning:** `deflect_min_speed`, `poke_strip_speed`, `poke_carrier_vel_blend`, `body_check_strip_threshold`, `body_check_transfer`, and related exports were set from first principles and need tuning under real network conditions.
 - **Passive shot blocking implemented:** `BodyBlockArea` (`Area3D`, `collision_mask = LAYER_PUCK`) on each skater detects puck entry; server-side `puck.on_body_block()` applies a dampened billiard reflection. Active shot-block stance (lower dampen, steeper angle) is planned as a future input-driven mode using the same area.
 - **Stick clamping extended to player bodies and goalies:** `stick_raycast.collision_mask = MASK_SKATER` (walls + skater bodies) so the blade cannot extend through opponents or goalie pads.

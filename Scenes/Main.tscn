@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://c545b8jaty5b7"]
 
 [ext_resource type="PhysicsMaterial" uid="uid://bo58ocxbodjpo" path="res://Physics/boards.tres" id="1_kln2b"]
+[ext_resource type="PackedScene" uid="uid://cs3u0eyiv7a7r" path="res://Scenes/HUD.tscn" id="4_rgh2o"]
 [ext_resource type="Script" uid="uid://c5pf6p0nivh61" path="res://Scripts/hockey_rink.gd" id="5_v1gob"]
 [ext_resource type="Script" uid="uid://xjv72m8sqqv1" path="res://Scripts/hockey_goal.gd" id="7_jw32o"]
 
@@ -40,3 +41,5 @@ script = ExtResource("7_jw32o")
 [node name="GoalTop" type="StaticBody3D" parent="." unique_id=1374888956]
 script = ExtResource("7_jw32o")
 facing = -1
+
+[node name="Hud" parent="." unique_id=2076368830 instance=ExtResource("4_rgh2o")]

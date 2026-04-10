@@ -67,6 +67,9 @@ func _on_peer_connected(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	print("Player disconnected: ", id)
 	GameManager.on_player_disconnected(id)
+	# Notify all remaining clients so they remove the stale skater.
+	for peer_id in multiplayer.get_peers():
+		notify_player_disconnected.rpc_id(peer_id, id)
 
 func _on_connected_to_server() -> void:
 	_connect_timer = -1.0
@@ -165,6 +168,10 @@ func release_puck(direction: Vector3, power: float) -> void:
 func notify_goal_to_all(scoring_team_id: int, score0: int, score1: int) -> void:
 	for peer_id in multiplayer.get_peers():
 		notify_goal.rpc_id(peer_id, scoring_team_id, score0, score1)
+
+@rpc("authority", "reliable")
+func notify_player_disconnected(peer_id: int) -> void:
+	GameManager.on_player_disconnected(peer_id)
 
 @rpc("authority", "reliable")
 func notify_goal(scoring_team_id: int, score0: int, score1: int) -> void:

@@ -90,11 +90,16 @@ func on_player_disconnected(peer_id: int) -> void:
 	if not players.has(peer_id):
 		return
 	var record: PlayerRecord = players[peer_id]
+	# Drop the puck before freeing the controller so puck_released fires while the
+	# record is still intact (puck_controller._on_puck_released checks players dict).
+	if NetworkManager.is_host and puck != null and puck.carrier == record.skater:
+		puck.drop()
+	players.erase(peer_id)
+	NetworkManager.unregister_remote_controller(peer_id)
 	if record.controller:
 		record.controller.queue_free()
 	if record.skater:
 		record.skater.queue_free()
-	players.erase(peer_id)
 
 func sync_existing_players(player_data: Array) -> void:
 	for entry in player_data:
@@ -115,9 +120,6 @@ func on_goal_scored(scoring_team_id: int, score0: int, score1: int) -> void:
 	var scoring_team: Team = teams[scoring_team_id]
 	_set_phase(GamePhase.GOAL_SCORED)
 	puck.pickup_locked = true
-	# If this client was carrying the puck, clear carrier state.
-	# The host drops it via puck.drop(), but puck.puck_released is only connected
-	# on the host — the scoring client never receives that signal.
 	# If this client was carrying the puck, clear carrier state.
 	# The host drops it via puck.drop(), but puck.puck_released is only connected
 	# on the host — the scoring client never receives that signal.

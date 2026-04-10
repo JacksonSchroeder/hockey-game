@@ -225,6 +225,10 @@ Player-first guarantee: weighted target is clamped so player never exceeds `play
 
 Two `Team` objects created at startup. Each owns a `defended_goal` (`HockeyGoal` instance), a `goalie_controller`, and a `score`. Two `HockeyGoal` instances in the scene (`facing=+1` and `facing=-1`). Each has a shallow `Area3D` goal sensor at its mouth; the host connects `goal_scored` signals in `_connect_goal_signals()`.
 
+### Player Colors
+
+The host generates a unique color per player at spawn time via `_generate_player_color(team_id)`. Team 0 uses warm reds (hue 340°–20°), team 1 uses cool blues (hue 200°–260°). The range is divided into equal slots — one per player (max 3 per team) — so same-team players always land in distinct thirds of the hue band, with a ±25% jitter within the slot for variety. Color is sent to joining clients via the `assign_player_slot` and `spawn_remote_skater` RPCs, and embedded in the `sync_existing_players` array for players already in the session. Stored in `PlayerRecord.color`; applied via `skater.set_player_color()` which sets `material_override` on the upper-body mesh and blade mesh.
+
 ### Planned
 
 - No stoppages except goals and faceoffs

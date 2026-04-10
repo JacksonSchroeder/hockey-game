@@ -58,14 +58,15 @@ func _process(delta: float) -> void:
 func on_host_started() -> void:
 	_spawn_world()
 	var team: Team = _assign_team()
-	_spawn_local_player(1, 0, team)
+	var color: Color = _generate_player_color(team.team_id)
+	_spawn_local_player(1, 0, team, color)
 
 func on_connected_to_server() -> void:
 	pass
 
-func on_slot_assigned(slot: int, team_id: int) -> void:
+func on_slot_assigned(slot: int, team_id: int, color: Color) -> void:
 	_spawn_world()
-	_spawn_local_player(multiplayer.get_unique_id(), slot, teams[team_id])
+	_spawn_local_player(multiplayer.get_unique_id(), slot, teams[team_id], color)
 
 func on_player_connected(peer_id: int) -> void:
 	if not NetworkManager.is_host:
@@ -73,18 +74,19 @@ func on_player_connected(peer_id: int) -> void:
 	var slot: int = _next_slot
 	_next_slot += 1
 	var team: Team = _assign_team()
+	var color: Color = _generate_player_color(team.team_id)
 
-	NetworkManager.send_slot_assignment(peer_id, slot, team.team_id)
+	NetworkManager.send_slot_assignment(peer_id, slot, team.team_id, color)
 
 	var existing: Array = []
 	for existing_peer_id in players:
 		var r: PlayerRecord = players[existing_peer_id]
-		existing.append([existing_peer_id, r.slot, r.team.team_id])
+		existing.append([existing_peer_id, r.slot, r.team.team_id, r.color])
 	NetworkManager.send_sync_existing_players(peer_id, existing)
 
-	NetworkManager.send_spawn_remote_skater(peer_id, slot, team.team_id)
+	NetworkManager.send_spawn_remote_skater(peer_id, slot, team.team_id, color)
 
-	_spawn_remote_player(peer_id, slot, team)
+	_spawn_remote_player(peer_id, slot, team, color)
 
 func on_player_disconnected(peer_id: int) -> void:
 	if not players.has(peer_id):
@@ -106,12 +108,13 @@ func sync_existing_players(player_data: Array) -> void:
 		var peer_id: int = entry[0]
 		var slot: int = entry[1]
 		var team_id: int = entry[2]
-		_spawn_remote_player(peer_id, slot, teams[team_id])
+		var color: Color = entry[3]
+		_spawn_remote_player(peer_id, slot, teams[team_id], color)
 
-func spawn_remote_skater(peer_id: int, slot: int, team_id: int) -> void:
+func spawn_remote_skater(peer_id: int, slot: int, team_id: int, color: Color) -> void:
 	if peer_id == multiplayer.get_unique_id():
 		return
-	_spawn_remote_player(peer_id, slot, teams[team_id])
+	_spawn_remote_player(peer_id, slot, teams[team_id], color)
 
 # ── Goal Event (called on all peers) ─────────────────────────────────────────
 func on_goal_scored(scoring_team_id: int, score0: int, score1: int) -> void:
@@ -207,14 +210,16 @@ func _spawn_goalies() -> void:
 	teams[1].goalie_controller = top_controller
 	teams[0].goalie_controller = bottom_controller
 
-func _spawn_local_player(peer_id: int, slot: int, team: Team) -> void:
+func _spawn_local_player(peer_id: int, slot: int, team: Team, color: Color) -> void:
 	var record := PlayerRecord.new(peer_id, slot, true, team)
+	record.color = color
 	var faceoff_pos: Vector3 = Constants.CENTER_FACEOFF_POSITIONS[slot]
 	record.faceoff_position = faceoff_pos
 
 	var skater: Skater = SKATER_SCENE.instantiate()
 	skater.position = faceoff_pos
 	get_tree().current_scene.add_child(skater)
+	skater.set_player_color(color)
 	record.skater = skater
 
 	var controller: LocalController = LOCAL_CONTROLLER_SCENE.instantiate()
@@ -227,14 +232,16 @@ func _spawn_local_player(peer_id: int, slot: int, team: Team) -> void:
 	players[peer_id] = record
 	NetworkManager.register_local_controller(controller)
 
-func _spawn_remote_player(peer_id: int, slot: int, team: Team) -> void:
+func _spawn_remote_player(peer_id: int, slot: int, team: Team, color: Color) -> void:
 	var record := PlayerRecord.new(peer_id, slot, false, team)
+	record.color = color
 	var faceoff_pos: Vector3 = Constants.CENTER_FACEOFF_POSITIONS[slot]
 	record.faceoff_position = faceoff_pos
 
 	var skater: Skater = SKATER_SCENE.instantiate()
 	skater.position = faceoff_pos
 	get_tree().current_scene.add_child(skater)
+	skater.set_player_color(color)
 	record.skater = skater
 
 	var controller: RemoteController = REMOTE_CONTROLLER_SCENE.instantiate()
@@ -296,6 +303,24 @@ func _assign_team() -> Team:
 
 func _other_team(team: Team) -> Team:
 	return teams[1] if team == teams[0] else teams[0]
+
+func _generate_player_color(team_id: int) -> Color:
+	# Team 0 = warm reds (hue 340°–20°), Team 1 = cool blues (hue 200°–260°).
+	# Divide the range into equal slots so same-team players always get
+	# visually distinct shades regardless of RNG.
+	const MAX_PER_TEAM: int = 3
+	var hue_min_deg: float = 340.0 if team_id == 0 else 200.0
+	var hue_max_deg: float = 380.0 if team_id == 0 else 260.0
+
+	var existing: int = 0
+	for pid: int in players:
+		if players[pid].team.team_id == team_id:
+			existing += 1
+
+	var slot_size: float = (hue_max_deg - hue_min_deg) / MAX_PER_TEAM
+	var slot_center: float = hue_min_deg + (existing + 0.5) * slot_size
+	var jitter: float = randf_range(-slot_size * 0.25, slot_size * 0.25)
+	return Color.from_hsv(fmod((slot_center + jitter) / 360.0, 1.0), 0.8, 0.9)
 
 func _set_phase(new_phase: GamePhase) -> void:
 	_phase = new_phase

@@ -25,6 +25,8 @@ extends CharacterBody3D
 @onready var shoulder: Marker3D = $UpperBody/Shoulder
 @onready var stick_raycast: RayCast3D = $StickRaycast
 @onready var stick_mesh: MeshInstance3D = $UpperBody/StickMesh
+@onready var _upper_body_mesh: MeshInstance3D = $UpperBody/UpperBodyMesh
+@onready var _blade_mesh: MeshInstance3D = $UpperBody/Blade/MeshInstance3D
 
 signal body_checked_player(victim: Skater, impact_force: float, hit_direction: Vector3)
 signal body_block_hit(body: Node3D)
@@ -110,6 +112,12 @@ func set_facing(facing: Vector2) -> void:
 
 func get_facing() -> Vector2:
 	return _facing
+
+func set_player_color(color: Color) -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	_upper_body_mesh.material_override = mat
+	_blade_mesh.material_override = mat
 
 # ── Blade ─────────────────────────────────────────────────────────────────────
 func set_blade_position(pos: Vector3) -> void:

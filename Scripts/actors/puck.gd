@@ -271,6 +271,10 @@ func reset() -> void:
 func _is_airborne() -> bool:
 	return position.y > ice_height + 0.05
 
+func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if state.linear_velocity.length() > max_speed:
+		state.linear_velocity = state.linear_velocity.normalized() * max_speed
+
 func _physics_process(delta: float) -> void:
 	if not _is_server:
 		return

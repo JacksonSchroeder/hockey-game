@@ -61,6 +61,11 @@ func _start_client(ip: String) -> void:
 
 # ── Network Signals ───────────────────────────────────────────────────────────
 func _on_peer_connected(id: int) -> void:
+	# Give peers a generous disconnect window — brief OS freezes (e.g. title bar
+	# right-click) block the message pump and silence ENet for several seconds.
+	var enet_peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet_peer:
+		enet_peer.get_peer(id).set_timeout(0, 10000, 60000)
 	print("Player connected: ", id)
 	GameManager.on_player_connected(id)
 
@@ -91,22 +96,35 @@ func _close() -> void:
 		multiplayer.multiplayer_peer.close()
 
 # ── Process ───────────────────────────────────────────────────────────────────
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_WINDOW_FOCUS_IN:
+		if is_host:
+			# Immediately resync clients — they've been without world state for the
+			# duration of the OS freeze.
+			_broadcast_state()
+		else:
+			# Reset the input timer so we don't burst-send stale inputs.
+			_input_timer = 0.0
+
 func _process(delta: float) -> void:
+	# Cap delta to avoid timer bursting on the first frame after an OS freeze
+	# (e.g. title bar right-click holding the message pump for several seconds).
+	var capped_delta: float = minf(delta, 0.5)
 	if _connect_timer >= 0.0:
-		_connect_timer += delta
+		_connect_timer += capped_delta
 		if _connect_timer >= CONNECT_TIMEOUT:
 			push_error("Connection timed out after %ds" % CONNECT_TIMEOUT)
 			get_tree().quit()
 
 	if not is_host and _local_controller != null:
-		_input_timer += delta
+		_input_timer += capped_delta
 		if _input_timer >= INPUT_DELTA:
 			_input_timer -= INPUT_DELTA
 			var state: InputState = _local_controller.get_current_input()
 			receive_input.rpc_id(1, state.to_array())
 
 	if is_host:
-		_state_timer += delta
+		_state_timer += capped_delta
 		if _state_timer >= STATE_DELTA:
 			_state_timer -= STATE_DELTA
 			_broadcast_state()

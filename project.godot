@@ -12,6 +12,7 @@ config_version=5
 
 config/name="HockeyGame"
 run/main_scene="uid://c545b8jaty5b7"
+run/pause_on_focus_loss=false
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 

@@ -146,6 +146,15 @@ func _build_goal(
 	# Netting — ruled surface between the two curves
 	_build_netting(base_pts, top_pts, goal_z, facing)
 
+	# Solid back wall to block puck entry through netting seam gaps.
+	# Placed at the net's maximum depth (BASE_P3.y = 1.02m).
+	var back_wall := BoxShape3D.new()
+	back_wall.size = Vector3(POST_HALF_WIDTH * 2.0 + 0.1, NET_HEIGHT + 0.1, 0.05)
+	var back_wall_col := CollisionShape3D.new()
+	back_wall_col.shape = back_wall
+	back_wall_col.position = Vector3(0.0, NET_HEIGHT / 2.0, goal_z + facing * 1.0)
+	add_child(back_wall_col)
+
 func _build_netting(
 	base_pts: PackedVector2Array,
 	top_pts: PackedVector2Array,
@@ -229,7 +238,11 @@ func _build_goal_sensor(goal_z: float) -> void:
 
 func _on_goal_area_body_entered(body: Node3D) -> void:
 	if body is Puck:
-		goal_scored.emit()
+		# Reject pucks entering from behind the net — they must be travelling
+		# inward (in the facing direction) to count.
+		var vel: Vector3 = (body as Puck).linear_velocity
+		if vel.dot(Vector3(0.0, 0.0, float(facing))) > 0.0:
+			goal_scored.emit()
 
 func _add_tube_segment(p_start: Vector3, p_end: Vector3, diameter: float, color: Color) -> void:
 	var seg := p_end - p_start

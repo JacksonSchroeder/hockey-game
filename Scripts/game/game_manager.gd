@@ -295,6 +295,21 @@ func _on_faceoff_puck_picked_up(_carrier: Skater) -> void:
 	if _phase == GamePhase.FACEOFF:
 		_set_phase(GamePhase.PLAYING)
 
+# ── Reset ─────────────────────────────────────────────────────────────────────
+func reset_game() -> void:
+	teams[0].score = 0
+	teams[1].score = 0
+	score_changed.emit(teams[0])
+	score_changed.emit(teams[1])
+	NetworkManager.notify_reset_to_all()
+	_begin_faceoff_prep()
+
+func on_game_reset() -> void:
+	teams[0].score = 0
+	teams[1].score = 0
+	score_changed.emit(teams[0])
+	score_changed.emit(teams[1])
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 func _assign_team() -> Team:
 	var t0_count: int = players.values().filter(func(r: PlayerRecord) -> bool: return r.team == teams[0]).size()

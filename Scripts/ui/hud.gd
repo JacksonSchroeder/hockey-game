@@ -14,6 +14,8 @@ var _local_skater: Skater = null
 func _ready() -> void:
 	_build_scorebug()
 	_build_elevation_indicator()
+	if NetworkManager.is_host:
+		_build_reset_button()
 	_score_label.text = "0 \u2013 0"
 	_phase_label.visible = false
 	GameManager.score_changed.connect(_on_score_changed)
@@ -82,6 +84,21 @@ func _build_elevation_indicator() -> void:
 	label.add_theme_font_size_override("font_size", 16)
 	label.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0, 1.0))
 	_elevation_panel.add_child(label)
+
+func _build_reset_button() -> void:
+	var btn := Button.new()
+	btn.text = "Reset"
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.anchor_left = 1.0
+	btn.anchor_right = 1.0
+	btn.anchor_top = 0.0
+	btn.anchor_bottom = 0.0
+	btn.offset_left = -88.0
+	btn.offset_right = -16.0
+	btn.offset_top = 16.0
+	btn.offset_bottom = 48.0
+	btn.pressed.connect(GameManager.reset_game)
+	add_child(btn)
 
 func _on_score_changed(_team: Team) -> void:
 	_score_label.text = "%d \u2013 %d" % [GameManager.teams[0].score, GameManager.teams[1].score]

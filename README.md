@@ -63,6 +63,7 @@ Pucks coming in fast deflect off your blade instead of sticking. Move your stick
 - Elevation indicator — bottom-center HUD badge when elevated shot mode is active
 - Main menu — host, join (with IP input), and offline from the title screen
 - Player colors — team-hued skater colors; reds for team 0, blues for team 1, each player a distinct shade
+- Host reset button — top-right HUD button (host only) that zeroes the score and restarts from faceoff
 
 ---
 

@@ -199,6 +199,14 @@ func send_faceoff_positions(positions: Array) -> void:
 func notify_faceoff_positions(positions: Array) -> void:
 	GameManager.on_faceoff_positions(positions)
 
+func notify_reset_to_all() -> void:
+	for peer_id in multiplayer.get_peers():
+		notify_game_reset.rpc_id(peer_id)
+
+@rpc("authority", "reliable")
+func notify_game_reset() -> void:
+	GameManager.on_game_reset()
+
 # ── Sending ───────────────────────────────────────────────────────────────────
 func send_slot_assignment(peer_id: int, slot: int, team_id: int, color: Color) -> void:
 	assign_player_slot.rpc_id(peer_id, slot, team_id, color)

@@ -157,6 +157,8 @@ Wall clamping: blade reach is shortened near boards. If squeeze exceeds `wall_sq
 
 ## Shooting
 
+**Puck carry speed penalty:** While carrying the puck, `effective_max_speed = max_speed * puck_carry_speed_multiplier` (default 0.88). The speed cap only applies to the cap check, not to thrust — so the skater still accelerates normally but is capped lower, preserving feel while making skating with the puck meaningfully slower than without it.
+
 **Quick shot:** Tap left click. Fires blade-direction at `quick_shot_power`. Low skill floor.
 
 **Wrister:** Hold left click, sweep blade to charge (distance-based), release to fire. Direction variance check resets charge if blade changes direction > 45° — prevents charge farming.

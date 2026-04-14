@@ -18,6 +18,7 @@ enum State {
 @export var rotation_speed: float = 6.0
 @export var move_deadzone: float = 0.1
 @export var brake_multiplier: float = 5.0
+@export var puck_carry_speed_multiplier: float = 0.88
 @export var backward_thrust_multiplier: float = 0.7
 @export var crossover_thrust_multiplier: float = 0.85
 @export var facing_lag_speed: float = 6.0
@@ -437,13 +438,14 @@ func _apply_movement(input: InputState, delta: float) -> void:
 
 		skater.velocity += thrust_dir * thrust * thrust_scale * delta
 
+		var effective_max_speed: float = max_speed * puck_carry_speed_multiplier if has_puck else max_speed
 		var speed: float = Vector2(skater.velocity.x, skater.velocity.z).length()
-		if speed > max_speed:
+		if speed > effective_max_speed:
 			var pre_thrust_speed: float = Vector2(
 				skater.velocity.x - thrust_dir.x * thrust * thrust_scale * delta,
 				skater.velocity.z - thrust_dir.z * thrust * thrust_scale * delta
 			).length()
-			var target_speed: float = maxf(pre_thrust_speed, max_speed)
+			var target_speed: float = maxf(pre_thrust_speed, effective_max_speed)
 			if speed > target_speed:
 				var limited: Vector2 = Vector2(skater.velocity.x, skater.velocity.z).normalized() * target_speed
 				skater.velocity.x = limited.x

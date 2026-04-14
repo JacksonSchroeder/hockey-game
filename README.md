@@ -50,6 +50,7 @@ Pucks coming in fast deflect off your blade instead of sticking. Move your stick
 - Relative-velocity catch vs deflect — move blade with the puck to receive, into the puck to redirect
 - Poke checking — opposing blades strip the puck loose, direction driven by blade velocities
 - Body checking — weight-based momentum transfer; hard hits strip the puck from the carrier
+- Puck carry speed penalty — carrier max speed reduced to 88%, encouraging passing
 - Passive shot blocking — puck deflects off skater bodies with dampened momentum
 - Stick clamping against player bodies and goalie pads — no poking through opponents
 - Physical deflection off blade contact normal with elevation tipping

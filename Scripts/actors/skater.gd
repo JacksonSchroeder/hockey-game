@@ -69,9 +69,6 @@ func _ready() -> void:
 	_body_block_area.add_child(block_shape)
 	add_child(_body_block_area)
 	_body_block_area.body_entered.connect(func(body: Node3D) -> void: body_block_hit.emit(body))
-	
-	shoulder.position = Vector3(hand_sign * shoulder_offset, 0.0, 0.0)
-	blade_area.position = Vector3.ZERO
 
 func _physics_process(delta: float) -> void:
 	var blade_world_pos: Vector3 = upper_body.to_global(blade.position)

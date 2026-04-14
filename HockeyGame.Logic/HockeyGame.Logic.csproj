@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>HockeyGame.Logic</RootNamespace>
+    <!-- Pure C# library. No Godot references — stays testable without the engine.
+         Uses System.Numerics.Vector3 instead of Godot.Vector3 so it's engine-agnostic. -->
+  </PropertyGroup>
+</Project>

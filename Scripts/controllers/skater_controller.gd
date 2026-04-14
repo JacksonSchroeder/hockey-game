@@ -278,43 +278,32 @@ func _enter_slapper_charge() -> void:
 
 func _release_wrister(input: InputState) -> void:
 	if has_puck:
-		var player_pos: Vector3 = skater.global_position
-		player_pos.y = 0.0
-		var mouse_target: Vector3 = input.mouse_world_pos
-		mouse_target.y = 0.0
-		_shot_dir = (mouse_target - player_pos).normalized()
-
-		var charge_t: float = clampf(_charge_distance / max_wrister_charge_distance, 0.0, 1.0)
-
-		if charge_t < quick_shot_threshold:
-			var blade_world: Vector3 = skater.upper_body_to_global(skater.get_blade_position())
-			blade_world.y = 0.0
-			var blade_dir: Vector3 = (mouse_target - blade_world).normalized()
-			var y_component: float = wrister_elevation if _is_elevated else 0.0
-			_do_release(Vector3(blade_dir.x, y_component, blade_dir.z).normalized(), quick_shot_power)
-		else:
-			var power: float = lerpf(min_wrister_power, max_wrister_power, charge_t)
-			var hand_sign: float = -1.0 if skater.is_left_handed else 1.0
-			var is_backhand: bool = sign(skater.get_blade_position().x - skater.shoulder.position.x) != sign(hand_sign)
-			if is_backhand:
-				power *= backhand_power_coefficient
-			var y_component: float = wrister_elevation if _is_elevated else 0.0
-			_do_release(Vector3(_shot_dir.x, y_component, _shot_dir.z).normalized(), power)
+		var result := ShotMechanics.release_wrister(
+				skater.global_position,
+				input.mouse_world_pos,
+				skater.upper_body_to_global(skater.get_blade_position()),
+				skater.get_blade_position(),
+				skater.shoulder.position,
+				skater.is_left_handed,
+				_is_elevated,
+				_charge_distance,
+				_wrister_config())
+		_shot_dir = result.direction
+		_do_release(result.direction, result.power)
 
 	_state = State.FOLLOW_THROUGH
 	_follow_through_timer = follow_through_duration
 
 func _release_slapper(input: InputState) -> void:
 	if has_puck:
-		var blade_world: Vector3 = skater.upper_body_to_global(skater.get_blade_position())
-		blade_world.y = 0.0
-		var mouse_target: Vector3 = input.mouse_world_pos
-		mouse_target.y = 0.0
-		_shot_dir = (mouse_target - blade_world).normalized()
-		var charge_t: float = clampf(_slapper_charge_timer / max_slapper_charge_time, 0.0, 1.0)
-		var power: float = lerpf(min_slapper_power, max_slapper_power, charge_t)
-		var y_component: float = slapper_elevation if _is_elevated else 0.0
-		_do_release(Vector3(_shot_dir.x, y_component, _shot_dir.z).normalized(), power)
+		var result := ShotMechanics.release_slapper(
+				skater.upper_body_to_global(skater.get_blade_position()),
+				input.mouse_world_pos,
+				_is_elevated,
+				_slapper_charge_timer,
+				_slapper_config())
+		_shot_dir = result.direction
+		_do_release(result.direction, result.power)
 
 	_state = State.FOLLOW_THROUGH
 	_follow_through_timer = follow_through_duration
@@ -365,7 +354,7 @@ func _apply_blade_from_mouse(input: InputState, delta: float) -> void:
 
 	if has_puck:
 		var squeeze: float = skater.get_wall_squeeze(intended_pos, clamped_target)
-		if squeeze > skater.wall_squeeze_threshold:
+		if ShotMechanics.should_release_on_wall_pin(squeeze, skater.wall_squeeze_threshold):
 			var wall_normal: Vector3 = skater.get_blade_wall_normal()
 			if wall_normal.length() > 0.0:
 				_do_release(wall_normal.normalized(), 3.0)
@@ -442,4 +431,23 @@ func _movement_config() -> Dictionary:
 		"puck_carry_speed_multiplier": puck_carry_speed_multiplier,
 		"backward_thrust_multiplier": backward_thrust_multiplier,
 		"crossover_thrust_multiplier": crossover_thrust_multiplier,
+	}
+
+func _wrister_config() -> Dictionary:
+	return {
+		"min_wrister_power": min_wrister_power,
+		"max_wrister_power": max_wrister_power,
+		"max_wrister_charge_distance": max_wrister_charge_distance,
+		"backhand_power_coefficient": backhand_power_coefficient,
+		"quick_shot_power": quick_shot_power,
+		"quick_shot_threshold": quick_shot_threshold,
+		"wrister_elevation": wrister_elevation,
+	}
+
+func _slapper_config() -> Dictionary:
+	return {
+		"min_slapper_power": min_slapper_power,
+		"max_slapper_power": max_slapper_power,
+		"max_slapper_charge_time": max_slapper_charge_time,
+		"slapper_elevation": slapper_elevation,
 	}

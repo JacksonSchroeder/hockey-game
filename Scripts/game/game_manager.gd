@@ -135,8 +135,6 @@ func spawn_remote_skater(peer_id: int, slot: int, team_id: int, color: Color) ->
 # ── Goal Event (called on all peers via RPC) ─────────────────────────────────
 func on_goal_scored(scoring_team_id: int, score0: int, score1: int) -> void:
 	_state_machine.apply_remote_goal(scoring_team_id, score0, score1)
-	teams[0].score = score0
-	teams[1].score = score1
 	var scoring_team: Team = teams[scoring_team_id]
 	puck.pickup_locked = true
 	# If this client was carrying the puck, clear carrier state.
@@ -279,10 +277,7 @@ func _on_goal_scored_into(defending_team: Team) -> void:
 	var scoring_team_id: int = _state_machine.on_goal_scored(defending_team.team_id)
 	if scoring_team_id == -1:
 		return  # wrong phase, ignored
-	# Mirror scores onto Team objects for HUD (Phase 8 will fix that reach-in).
-	teams[0].score = _state_machine.scores[0]
-	teams[1].score = _state_machine.scores[1]
-	puck.pickup_locked = true
+puck.pickup_locked = true
 	goal_scored.emit(teams[scoring_team_id])
 	score_changed.emit(_state_machine.scores[0], _state_machine.scores[1])
 	phase_changed.emit(_state_machine.current_phase)
@@ -327,8 +322,6 @@ func _on_faceoff_puck_picked_up(_carrier: Skater) -> void:
 # ── Reset ─────────────────────────────────────────────────────────────────────
 func reset_game() -> void:
 	_state_machine.reset_scores()
-	teams[0].score = 0
-	teams[1].score = 0
 	score_changed.emit(0, 0)
 	NetworkManager.notify_reset_to_all()
 	# begin_faceoff_prep() transitions the state machine; _handle_phase_entered()
@@ -338,8 +331,6 @@ func reset_game() -> void:
 
 func on_game_reset() -> void:
 	_state_machine.reset_scores()
-	teams[0].score = 0
-	teams[1].score = 0
 	score_changed.emit(0, 0)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -409,8 +400,6 @@ func _apply_game_state(state: Array, offset: int) -> void:
 	var score1: int = state[offset + 1]
 	var new_phase: GamePhase.Phase = state[offset + 2] as GamePhase.Phase
 	var phase_changed_this_tick: bool = _state_machine.apply_remote_state(score0, score1, new_phase)
-	teams[0].score = score0
-	teams[1].score = score1
 	if phase_changed_this_tick:
 		puck.pickup_locked = PhaseRules.is_dead_puck_phase(new_phase)
 		phase_changed.emit(new_phase)

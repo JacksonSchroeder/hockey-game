@@ -96,7 +96,7 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 | `actors/hockey_goal.gd` | Goal mesh + goal sensor Area3D; emits `goal_scored` signal |
 | `actors/hockey_rink.gd` | Procedural rink geometry (@tool): walls, corners, ice surface, markings |
 | `game/constants.gd` | Engine-facing constants only: collision layers/masks, network port, input/state rates, physics tick. Game-rule constants live in `domain/config/game_rules.gd`. |
-| `game/team.gd` | Team object: defended goal, goalie controller, score |
+| `game/team.gd` | Team object: defended goal, goalie controller |
 | `game/player_record.gd` | Per-player data: peer_id, slot, team, skater, controller, faceoff_position |
 | `networking/buffered_skater_state.gd` | Timestamped SkaterNetworkState for interpolation buffer |
 | `networking/buffered_puck_state.gd` | Timestamped PuckNetworkState for interpolation buffer |

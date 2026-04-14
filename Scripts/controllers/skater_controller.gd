@@ -202,6 +202,10 @@ func _state_skating_with_puck(input: InputState, delta: float) -> void:
 		_enter_slapper_charge()
 
 func _state_wrister_aim(input: InputState, delta: float) -> void:
+	if input.block_held:
+		_transition_to_skating()
+		return
+
 	_apply_blade_from_mouse(input, delta)
 
 	if has_puck:

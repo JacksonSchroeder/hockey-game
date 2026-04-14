@@ -97,6 +97,36 @@ func test_wrister_elevation_adds_y_component() -> void:
 	assert_almost_eq(flat.direction.y, 0.0, 0.01)
 	assert_gt(elevated.direction.y, 0.0)
 
+func test_wrister_charged_uses_drag_direction_not_player_to_mouse() -> void:
+	# Player at origin, mouse to the right (+X), but blade was dragged forward (-Z).
+	# Shot should go forward (-Z), not rightward (+X).
+	var result: Dictionary = ShotMechanics.release_wrister(
+		Vector3.ZERO,           # player_pos
+		Vector3(10, 0, 0),      # mouse far to the right
+		Vector3(0.5, 0, 0),     # blade world pos
+		Vector3(0.5, 0, 0),     # blade local pos
+		Vector3(0.35, 0, 0),    # shoulder local pos
+		false, false,
+		3.0,                    # full charge
+		_wrister_cfg(),
+		Vector3(0, 0, -1))      # charge_direction: dragged forward
+	assert_almost_eq(result.direction.z, -1.0, 0.05, "shot follows drag direction, not mouse position")
+	assert_almost_eq(result.direction.x, 0.0, 0.05, "shot does not veer toward mouse")
+
+func test_wrister_charged_falls_back_to_mouse_when_no_drag_direction() -> void:
+	# No drag direction recorded — should fall back to player→mouse aim.
+	var result: Dictionary = ShotMechanics.release_wrister(
+		Vector3.ZERO,
+		Vector3(10, 0, 0),
+		Vector3(0.5, 0, 0),
+		Vector3(0.5, 0, 0),
+		Vector3(0.35, 0, 0),
+		false, false,
+		3.0,
+		_wrister_cfg(),
+		Vector3.ZERO)           # no drag direction
+	assert_gt(result.direction.x, 0.9, "falls back to player→mouse direction (+X)")
+
 # ── Slapper ──────────────────────────────────────────────────────────────────
 
 func test_slapper_power_scales_with_charge_time() -> void:

@@ -336,16 +336,21 @@ func _enter_slapper_charge() -> void:
 
 func _release_wrister(input: InputState) -> void:
 	if has_puck:
+		var blade_world: Vector3 = skater.upper_body_to_global(skater.get_blade_position())
+		var shoulder_world: Vector3 = skater.upper_body_to_global(skater.shoulder.position)
+		var aim_dir: Vector3 = blade_world - shoulder_world
+		aim_dir.y = 0.0
 		var result := ShotMechanics.release_wrister(
 				skater.global_position,
 				input.mouse_world_pos,
-				skater.upper_body_to_global(skater.get_blade_position()),
+				blade_world,
 				skater.get_blade_position(),
 				skater.shoulder.position,
 				skater.is_left_handed,
 				_is_elevated,
 				_charge_distance,
-				_wrister_config())
+				_wrister_config(),
+				aim_dir)
 		_shot_dir = result.direction
 		_do_release(result.direction, result.power)
 

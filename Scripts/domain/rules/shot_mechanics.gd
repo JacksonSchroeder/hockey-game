@@ -25,7 +25,8 @@ static func release_wrister(
 		is_left_handed: bool,
 		is_elevated: bool,
 		charge_distance: float,
-		cfg: Dictionary) -> Dictionary:
+		cfg: Dictionary,
+		charge_direction: Vector3 = Vector3.ZERO) -> Dictionary:
 	var target := Vector3(mouse_world_pos.x, 0.0, mouse_world_pos.z)
 	var charge_t: float = clampf(charge_distance / cfg.max_wrister_charge_distance, 0.0, 1.0)
 
@@ -39,9 +40,15 @@ static func release_wrister(
 			"power": cfg.quick_shot_power,
 		}
 
-	# Full wrister — aim from player, power scales with charge.
-	var player_xz := Vector3(player_pos.x, 0.0, player_pos.z)
-	var shot_dir: Vector3 = (target - player_xz).normalized()
+	# Full wrister — shot goes where the blade was dragged, power scales with charge.
+	# charge_direction is the world-space direction the blade was sweeping at release;
+	# fall back to player→mouse only when no drag direction is available.
+	var shot_dir: Vector3
+	if charge_direction.length_squared() > 0.0001:
+		shot_dir = Vector3(charge_direction.x, 0.0, charge_direction.z).normalized()
+	else:
+		var player_xz := Vector3(player_pos.x, 0.0, player_pos.z)
+		shot_dir = (target - player_xz).normalized()
 	var power: float = lerpf(cfg.min_wrister_power, cfg.max_wrister_power, charge_t)
 
 	var hand_sign: float = -1.0 if is_left_handed else 1.0

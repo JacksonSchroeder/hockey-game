@@ -80,13 +80,14 @@ func _apply_local_carrier_position() -> void:
 # Mirrors LocalController.reconcile — nudges Jolt state toward server truth each
 # broadcast. Hard-snaps only on extreme divergence (teleport, physics glitch).
 func _reconcile(state: PuckNetworkState) -> void:
-	var pos_error := state.position - puck.get_puck_position()
-	if pos_error.length() > prediction_reconcile_threshold:
+	if ReconciliationRules.puck_needs_hard_snap(
+			puck.get_puck_position(), state.position, prediction_reconcile_threshold):
 		puck.set_puck_position(state.position)
 		puck.set_puck_velocity(state.velocity)
 		_state_buffer.clear()
 		return
 	var current_vel := puck.get_puck_velocity()
+	var pos_error := state.position - puck.get_puck_position()
 	puck.set_puck_velocity(current_vel.lerp(state.velocity, velocity_correction_blend))
 	# Only nudge position when velocities agree — avoids fighting Jolt during
 	# bounces where velocities are briefly opposing.

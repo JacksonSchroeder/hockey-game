@@ -62,9 +62,10 @@ func reconcile(server_state: SkaterNetworkState) -> void:
 	_input_history = _input_history.filter(
 		func(i: InputState): return i.sequence > server_state.last_processed_sequence
 	)
-	var position_error := skater.global_position.distance_to(server_state.position)
-	var velocity_error := skater.velocity.distance_to(server_state.velocity)
-	if position_error < reconcile_position_threshold and velocity_error < reconcile_velocity_threshold:
+	if not ReconciliationRules.skater_needs_reconcile(
+			skater.global_position, skater.velocity,
+			server_state.position, server_state.velocity,
+			reconcile_position_threshold, reconcile_velocity_threshold):
 		return
 	skater.global_position = server_state.position
 	skater.velocity = server_state.velocity

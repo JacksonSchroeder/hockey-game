@@ -194,17 +194,14 @@ func _state_wrister_aim(input: InputState, delta: float) -> void:
 	_apply_blade_from_mouse(input, delta)
 
 	if has_puck:
-		var blade_delta: Vector3 = skater.get_blade_position() - _prev_blade_pos
-		blade_delta.y = 0.0
-		var dist: float = blade_delta.length()
-		if dist > 0.001:
-			var current_dir: Vector3 = blade_delta.normalized()
-			if _prev_blade_dir != Vector3.ZERO:
-				var angle: float = rad_to_deg(_prev_blade_dir.angle_to(current_dir))
-				if angle > max_charge_direction_variance:
-					_charge_distance = 0.0
-			_charge_distance += dist
-			_prev_blade_dir = current_dir
+		var result: Dictionary = ChargeTracking.accumulate(
+				_prev_blade_pos,
+				skater.get_blade_position(),
+				_prev_blade_dir,
+				_charge_distance,
+				max_charge_direction_variance)
+		_charge_distance = result.charge
+		_prev_blade_dir = result.direction
 
 	_prev_blade_pos = skater.get_blade_position()
 

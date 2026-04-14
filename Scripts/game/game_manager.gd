@@ -6,7 +6,7 @@ extends Node
 
 # ── Signals ───────────────────────────────────────────────────────────────────
 signal goal_scored(scoring_team: Team)
-signal score_changed(team: Team)
+signal score_changed(score_0: int, score_1: int)
 signal phase_changed(new_phase: GamePhase.Phase)
 
 # ── Domain state ──────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ func on_goal_scored(scoring_team_id: int, score0: int, score1: int) -> void:
 		local_record.controller.on_puck_released_network()
 		puck_controller.notify_local_puck_dropped()
 	goal_scored.emit(scoring_team)
-	score_changed.emit(scoring_team)
+	score_changed.emit(_state_machine.scores[0], _state_machine.scores[1])
 	phase_changed.emit(_state_machine.current_phase)
 
 func on_faceoff_positions(positions: Array) -> void:
@@ -279,7 +279,7 @@ func _on_goal_scored_into(defending_team: Team) -> void:
 	teams[1].score = _state_machine.scores[1]
 	puck.pickup_locked = true
 	goal_scored.emit(teams[scoring_team_id])
-	score_changed.emit(teams[scoring_team_id])
+	score_changed.emit(_state_machine.scores[0], _state_machine.scores[1])
 	phase_changed.emit(_state_machine.current_phase)
 	NetworkManager.notify_goal_to_all(
 			scoring_team_id, _state_machine.scores[0], _state_machine.scores[1])
@@ -324,8 +324,7 @@ func reset_game() -> void:
 	_state_machine.reset_scores()
 	teams[0].score = 0
 	teams[1].score = 0
-	score_changed.emit(teams[0])
-	score_changed.emit(teams[1])
+	score_changed.emit(0, 0)
 	NetworkManager.notify_reset_to_all()
 	# begin_faceoff_prep() transitions the state machine; _handle_phase_entered()
 	# dispatches to _enter_faceoff_prep() and emits phase_changed.
@@ -336,8 +335,7 @@ func on_game_reset() -> void:
 	_state_machine.reset_scores()
 	teams[0].score = 0
 	teams[1].score = 0
-	score_changed.emit(teams[0])
-	score_changed.emit(teams[1])
+	score_changed.emit(0, 0)
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 func _generate_player_color(team_id: int) -> Color:

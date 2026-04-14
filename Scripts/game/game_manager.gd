@@ -66,16 +66,6 @@ func _apply_ghost_state() -> void:
 		if players.has(peer_id):
 			players[peer_id].skater.set_ghost(ghosts[peer_id])
 
-# Thin wrapper around InfractionRules.is_offside for callers that have Skater/Team/Puck refs.
-static func check_offside(skater: Skater, team: Team, p: Puck) -> bool:
-	if p == null:
-		return false
-	return InfractionRules.is_offside(
-			skater.global_position.z,
-			team.team_id,
-			p.global_position.z,
-			p.carrier == skater)
-
 # ── Network Callbacks ─────────────────────────────────────────────────────────
 func on_host_started() -> void:
 	_spawn_world()
@@ -381,10 +371,10 @@ func reset_game() -> void:
 	score_changed.emit(teams[0])
 	score_changed.emit(teams[1])
 	NetworkManager.notify_reset_to_all()
-	# Manually drive into faceoff prep (instead of going through tick timer).
+	# begin_faceoff_prep() transitions the state machine; _handle_phase_entered()
+	# dispatches to _enter_faceoff_prep() and emits phase_changed.
 	_state_machine.begin_faceoff_prep()
-	_enter_faceoff_prep()
-	phase_changed.emit(_state_machine.current_phase)
+	_handle_phase_entered()
 
 func on_game_reset() -> void:
 	_state_machine.reset_scores()
@@ -394,9 +384,6 @@ func on_game_reset() -> void:
 	score_changed.emit(teams[1])
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-func _other_team(team: Team) -> Team:
-	return teams[1] if team == teams[0] else teams[0]
-
 func _generate_player_color(team_id: int) -> Color:
 	var existing: int = 0
 	for pid: int in players:
@@ -479,13 +466,6 @@ func is_movement_locked() -> bool:
 	if _state_machine == null:
 		return false
 	return _state_machine.is_movement_locked()
-
-# Legacy static — kept while docs and other non-controller callers transition.
-# No scripts call this anymore; safe to remove in the cleanup phase.
-static func movement_locked() -> bool:
-	if GameManager._state_machine == null:
-		return false
-	return GameManager._state_machine.is_movement_locked()
 
 static func get_skater_team(skater: Skater) -> Team:
 	for peer_id: int in GameManager.players:

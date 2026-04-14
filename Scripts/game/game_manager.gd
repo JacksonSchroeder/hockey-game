@@ -421,9 +421,9 @@ func is_movement_locked() -> bool:
 		return false
 	return _state_machine.is_movement_locked()
 
-static func get_skater_team(skater: Skater) -> Team:
-	for peer_id: int in GameManager.players:
-		var record: PlayerRecord = GameManager.players[peer_id]
+func get_skater_team(skater: Skater) -> Team:
+	for peer_id: int in players:
+		var record: PlayerRecord = players[peer_id]
 		if record.skater == skater:
 			return record.team
 	return null

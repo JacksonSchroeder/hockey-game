@@ -259,7 +259,8 @@ func _spawn_local_player(peer_id: int, slot: int, team: Team, color: Color) -> v
 
 	var controller: LocalController = LOCAL_CONTROLLER_SCENE.instantiate()
 	get_tree().current_scene.add_child(controller)
-	controller.setup(skater, puck, self, team.team_id)
+	controller.setup(skater, puck, self)
+	controller.set_local_team_id(team.team_id)
 	record.controller = controller
 
 	controller.puck_release_requested.connect(_on_puck_release_requested)

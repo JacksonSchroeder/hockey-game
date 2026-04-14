@@ -10,15 +10,20 @@ var _current_input: InputState = InputState.new()
 var _input_history: Array[InputState] = []
 var _team_id: int = -1  # set at setup; needed for client-side offside prediction
 
-func setup(assigned_skater: Skater, assigned_puck: Puck, game_state: Node, team_id: int) -> void:
+func setup(assigned_skater: Skater, assigned_puck: Puck, game_state: Node) -> void:
 	camera = $Camera3D
 	super.setup(assigned_skater, assigned_puck, game_state)
-	_team_id = team_id
 	_gatherer = LocalInputGatherer.new(camera)
 	add_child(_gatherer)
 	camera.skater = assigned_skater
 	camera.puck = assigned_puck
 	camera.local_controller = self
+
+# Called after setup() to provide the local player's team — needed for
+# client-side offside prediction. Separate from setup() because GDScript
+# requires overrides to match the parent signature exactly.
+func set_local_team_id(team_id: int) -> void:
+	_team_id = team_id
 
 func get_current_input() -> InputState:
 	return _current_input

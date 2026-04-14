@@ -24,6 +24,7 @@ var _peer_id_resolver: Callable = Callable()
 signal puck_picked_up_by(peer_id: int)
 signal puck_released_by_carrier(peer_id: int)
 signal puck_stripped_from(peer_id: int)
+signal puck_touched_while_loose  # deflection or body block — cancels icing
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 func setup(assigned_puck: Puck, assigned_is_server: bool) -> void:
@@ -35,6 +36,7 @@ func setup(assigned_puck: Puck, assigned_is_server: bool) -> void:
 		puck.puck_picked_up.connect(_on_puck_picked_up)
 		puck.puck_released.connect(_on_puck_released)
 		puck.puck_stripped.connect(_on_puck_stripped)
+		puck.puck_touched_loose.connect(func() -> void: puck_touched_while_loose.emit())
 
 func set_peer_id_resolver(resolver: Callable) -> void:
 	_peer_id_resolver = resolver

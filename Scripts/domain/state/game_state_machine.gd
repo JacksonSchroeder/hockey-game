@@ -74,6 +74,12 @@ func notify_puck_carried(carrier_team_id: int, carrier_z: float) -> void:
 		icing_team_id = -1
 		_icing_timer = 0.0
 
+# Host-side: called when a loose puck is touched by any player (deflection,
+# body block, poke check, body check strip). Clears the icing tracker so the
+# touch is not counted as an intentional ice.
+func notify_icing_contact() -> void:
+	last_carrier_team_id = -1
+
 # Host-side: called every physics frame when the puck is loose. Detects icing
 # and starts the ghost timer.
 func check_icing_for_loose_puck(puck_z: float) -> void:

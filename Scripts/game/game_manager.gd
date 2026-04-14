@@ -201,6 +201,7 @@ func _spawn_puck() -> void:
 	puck_controller.puck_picked_up_by.connect(_on_server_puck_picked_up_by)
 	puck_controller.puck_released_by_carrier.connect(_on_server_puck_released_by_carrier)
 	puck_controller.puck_stripped_from.connect(_on_server_puck_stripped_from)
+	puck_controller.puck_touched_while_loose.connect(_on_server_puck_touched_while_loose)
 
 func _spawn_goalies() -> void:
 	var result: Dictionary = _spawner.spawn_goalie_pair(puck, NetworkManager.is_host)
@@ -261,8 +262,12 @@ func _on_server_puck_released_by_carrier(peer_id: int) -> void:
 func _on_server_puck_stripped_from(peer_id: int) -> void:
 	if not players.has(peer_id):
 		return
+	_state_machine.notify_icing_contact()
 	if not players[peer_id].is_local:
 		NetworkManager.send_puck_stolen(peer_id)
+
+func _on_server_puck_touched_while_loose() -> void:
+	_state_machine.notify_icing_contact()
 
 # ── Goal Scoring (host) ───────────────────────────────────────────────────────
 func _on_goal_scored_into(defending_team: Team) -> void:

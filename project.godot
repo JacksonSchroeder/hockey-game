@@ -22,6 +22,10 @@ Constants="*uid://dqhdah8fo6h2h"
 NetworkManager="*uid://bko4mpa8jb0u2"
 GameManager="*uid://bpqctbi2qkaeo"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+
 [input]
 
 shoot={
@@ -104,7 +108,3 @@ elevation_down={
 
 common/physics_ticks_per_second=240
 3d/physics_engine="Jolt Physics"
-
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/gut/plugin.cfg")

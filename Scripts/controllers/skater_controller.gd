@@ -9,6 +9,7 @@ enum State {
 	SLAPPER_CHARGE_WITH_PUCK,
 	SLAPPER_CHARGE_WITHOUT_PUCK,
 	FOLLOW_THROUGH,
+	SHOT_BLOCKING,
 }
 
 # ── Movement Tuning ───────────────────────────────────────────────────────────
@@ -61,6 +62,10 @@ enum State {
 # ── Follow Through Tuning ─────────────────────────────────────────────────────
 @export var follow_through_duration: float = 0.15
 
+# ── Shot-Block Tuning ─────────────────────────────────────────────────────────
+@export var block_speed_multiplier: float = 0.45   # movement speed while blocking
+@export var active_block_dampen: float = 0.35      # puck energy retention on active block
+
 # ── References ────────────────────────────────────────────────────────────────
 var skater: Skater = null
 var puck: Puck = null
@@ -105,7 +110,8 @@ func _on_body_block_hit(body: Node3D) -> void:
 		return
 	if not body is Puck:
 		return
-	puck.on_body_block(skater)
+	var dampen: float = active_block_dampen if _state == State.SHOT_BLOCKING else puck.body_block_dampen
+	puck.on_body_block(skater, dampen)
 
 # ── Entry Point ───────────────────────────────────────────────────────────────
 func _process_input(input: InputState, delta: float) -> void:
@@ -174,8 +180,13 @@ func _apply_state(input: InputState, delta: float) -> void:
 			_state_slapper_charge_without_puck(input, delta)
 		State.FOLLOW_THROUGH:
 			_state_follow_through(delta)
+		State.SHOT_BLOCKING:
+			_state_shot_blocking(input, delta)
 
 func _state_skating_without_puck(input: InputState, delta: float) -> void:
+	if input.block_held:
+		_enter_shot_block()
+		return
 	_apply_blade_from_mouse(input, delta)
 	if input.shoot_pressed:
 		_state = State.WRISTER_AIM
@@ -254,6 +265,19 @@ func _state_follow_through(delta: float) -> void:
 	if _follow_through_timer <= 0.0:
 		_transition_to_skating()
 
+func _state_shot_blocking(input: InputState, delta: float) -> void:
+	if not input.block_held or _game_state.is_movement_locked():
+		_exit_shot_block()
+		return
+	skater.velocity = SkaterMovementRules.apply_movement(
+			skater.velocity,
+			input.move_vector,
+			skater.rotation.y,
+			false,
+			input.brake,
+			delta,
+			_block_movement_config())
+
 # ── State Helpers ─────────────────────────────────────────────────────────────
 func _transition_to_skating() -> void:
 	if has_puck:
@@ -262,6 +286,20 @@ func _transition_to_skating() -> void:
 		_state = State.SKATING_WITHOUT_PUCK
 	_shot_dir = Vector3.ZERO
 	_upper_body_angle = 0.0
+
+func _enter_shot_block() -> void:
+	_state = State.SHOT_BLOCKING
+	skater.set_block_stance(true)
+	# Snap facing toward puck on entry — locked for duration of stance
+	var to_puck: Vector3 = puck.global_position - skater.global_position
+	to_puck.y = 0.0
+	if to_puck.length() > 0.01:
+		_facing = Vector2(to_puck.x, to_puck.z).normalized()
+		skater.set_facing(_facing)
+
+func _exit_shot_block() -> void:
+	skater.set_block_stance(false)
+	_transition_to_skating()
 
 func _enter_wrister_aim() -> void:
 	_state = State.WRISTER_AIM
@@ -379,7 +417,7 @@ func _apply_blade_from_relative_angle() -> void:
 
 # ── Upper Body ────────────────────────────────────────────────────────────────
 func _apply_upper_body(delta: float) -> void:
-	if _state == State.SLAPPER_CHARGE_WITH_PUCK:
+	if _state in [State.SLAPPER_CHARGE_WITH_PUCK, State.SHOT_BLOCKING]:
 		return
 
 	var target_angle: float = 0.0
@@ -395,7 +433,7 @@ func _apply_upper_body(delta: float) -> void:
 
 # ── Facing ────────────────────────────────────────────────────────────────────
 func _apply_facing(input: InputState, delta: float) -> void:
-	if _state in [State.WRISTER_AIM, State.SLAPPER_CHARGE_WITH_PUCK, State.SLAPPER_CHARGE_WITHOUT_PUCK]:
+	if _state in [State.WRISTER_AIM, State.SLAPPER_CHARGE_WITH_PUCK, State.SLAPPER_CHARGE_WITHOUT_PUCK, State.SHOT_BLOCKING]:
 		return
 
 	if input.facing_held:
@@ -414,7 +452,7 @@ func _apply_facing(input: InputState, delta: float) -> void:
 
 # ── Movement ──────────────────────────────────────────────────────────────────
 func _apply_movement(input: InputState, delta: float) -> void:
-	if _state == State.SLAPPER_CHARGE_WITH_PUCK:
+	if _state in [State.SLAPPER_CHARGE_WITH_PUCK, State.SHOT_BLOCKING]:
 		return
 	skater.velocity = SkaterMovementRules.apply_movement(
 			skater.velocity,
@@ -436,6 +474,12 @@ func _movement_config() -> Dictionary:
 		"backward_thrust_multiplier": backward_thrust_multiplier,
 		"crossover_thrust_multiplier": crossover_thrust_multiplier,
 	}
+
+func _block_movement_config() -> Dictionary:
+	var cfg: Dictionary = _movement_config()
+	cfg["max_speed"] = max_speed * block_speed_multiplier
+	cfg["thrust"] = thrust * block_speed_multiplier
+	return cfg
 
 func _wrister_config() -> Dictionary:
 	return {

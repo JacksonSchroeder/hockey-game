@@ -12,6 +12,7 @@ var facing_held: bool = false
 var brake: bool = false
 var elevation_up: bool = false
 var elevation_down: bool = false
+var block_held: bool = false
 
 func to_array() -> Array:
 	return [
@@ -30,6 +31,7 @@ func to_array() -> Array:
 		brake,
 		elevation_up,
 		elevation_down,
+		block_held,
 	]
 
 static func from_array(data: Array) -> InputState:
@@ -46,4 +48,5 @@ static func from_array(data: Array) -> InputState:
 	state.brake = data[12]
 	state.elevation_up = data[13]
 	state.elevation_down = data[14]
+	state.block_held = data[15]
 	return state

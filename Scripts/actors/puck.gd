@@ -177,7 +177,7 @@ func _deflect_off_blade(skater: Skater) -> void:
 	_set_cooldown(skater, deflect_cooldown)
 	puck_touched_loose.emit()
 
-func on_body_block(blocker: Skater) -> void:
+func on_body_block(blocker: Skater, dampen_override: float = -1.0) -> void:
 	if not _is_server:
 		return
 	if pickup_locked:
@@ -194,8 +194,9 @@ func on_body_block(blocker: Skater) -> void:
 	if contact_normal.length() < 0.001:
 		contact_normal = -blocker.global_transform.basis.z
 	contact_normal = contact_normal.normalized()
+	var effective_dampen: float = dampen_override if dampen_override >= 0.0 else body_block_dampen
 	linear_velocity = PuckCollisionRules.body_block_velocity(
-			linear_velocity, contact_normal, body_block_dampen)
+			linear_velocity, contact_normal, effective_dampen)
 	_set_cooldown(blocker, body_block_cooldown)
 	puck_touched_loose.emit()
 

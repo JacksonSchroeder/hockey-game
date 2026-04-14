@@ -17,6 +17,8 @@ extends CharacterBody3D
 
 # ── Body Block Tuning ─────────────────────────────────────────────────────────
 @export var body_block_radius: float = 0.5
+@export var block_body_radius: float = 0.9    # expanded radius during active shot-block stance
+@export var block_crouch_depth: float = 0.35  # how far upper_body drops during block
 
 # ── Node References ───────────────────────────────────────────────────────────
 @onready var lower_body: Node3D = $LowerBody
@@ -38,12 +40,15 @@ var is_ghost: bool = false
 var blade_world_velocity: Vector3 = Vector3.ZERO
 var _prev_blade_world_pos: Vector3 = Vector3.ZERO
 var _body_block_area: Area3D = null
+var _body_block_sphere: SphereShape3D = null
 var _blade_area: Area3D = null
+var _default_upper_body_y: float = 0.0
 
 func _ready() -> void:
 	var hand_sign: float = -1.0 if is_left_handed else 1.0
 	shoulder.position = Vector3(hand_sign * shoulder_offset, 0.0, 0.0)
 	_prev_blade_world_pos = upper_body.to_global(blade.position)
+	_default_upper_body_y = upper_body.position.y
 
 	collision_layer = Constants.LAYER_SKATER_BODIES
 	collision_mask  = Constants.MASK_SKATER
@@ -64,10 +69,10 @@ func _ready() -> void:
 	_body_block_area.name = "BodyBlockArea"
 	_body_block_area.collision_layer = 0
 	_body_block_area.collision_mask = Constants.LAYER_PUCK
-	var block_shape = CollisionShape3D.new()
-	var block_sphere = SphereShape3D.new()
-	block_sphere.radius = body_block_radius
-	block_shape.shape = block_sphere
+	var block_shape := CollisionShape3D.new()
+	_body_block_sphere = SphereShape3D.new()
+	_body_block_sphere.radius = body_block_radius
+	block_shape.shape = _body_block_sphere
 	_body_block_area.add_child(block_shape)
 	add_child(_body_block_area)
 	_body_block_area.body_entered.connect(func(body: Node3D) -> void: body_block_hit.emit(body))
@@ -196,6 +201,13 @@ func set_ghost(ghost: bool) -> void:
 		collision_layer = Constants.LAYER_SKATER_BODIES
 		collision_mask = Constants.MASK_SKATER
 	_apply_ghost_visual(ghost)
+
+# ── Shot-Block Stance ─────────────────────────────────────────────────────────
+func set_block_stance(active: bool) -> void:
+	_body_block_sphere.radius = block_body_radius if active else body_block_radius
+	upper_body.position.y = _default_upper_body_y - block_crouch_depth if active else _default_upper_body_y
+	# Disable blade pickup while blocking so the puck can't be picked up
+	_blade_area.collision_layer = 0 if active else Constants.LAYER_BLADE_AREAS
 
 func _apply_ghost_visual(ghost: bool) -> void:
 	var meshes: Array[MeshInstance3D] = [_upper_body_mesh, _blade_mesh, stick_mesh]

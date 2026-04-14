@@ -52,6 +52,7 @@ Pucks coming in fast deflect off your blade instead of sticking. Move your stick
 - Body checking — weight-based momentum transfer; hard hits strip the puck from the carrier
 - Puck carry speed penalty — carrier max speed reduced to 88%, encouraging passing
 - Passive shot blocking — puck deflects off skater bodies with dampened momentum
+- Active shot-block stance (Ctrl) — drops to a crouch, widens block area, snaps to face puck, slows movement; puck carries more energy away than passive
 - Stick clamping against player bodies and goalie pads — no poking through opponents
 - Physical deflection off blade contact normal with elevation tipping
 - Elevated shots

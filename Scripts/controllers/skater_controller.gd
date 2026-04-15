@@ -39,9 +39,12 @@ enum State {
 # horizontal plane, expressed in "forehand side = positive angle" convention).
 # Forehand cross-body reach is anatomically limited; backhand same-side reach
 # allows full arm extension, supporting one-handed backhand plays.
-@export var rom_forehand_angle_max_deg: float = 45.0
+# Note: the upper body twists toward the blade (upper_body_twist_ratio = 0.5),
+# which effectively reduces how much angular ROM the hand needs — these values
+# assume that twist is active.
+@export var rom_forehand_angle_max_deg: float = 90.0
 @export var rom_backhand_angle_max_deg: float = 120.0
-@export var rom_forehand_reach_max: float = 0.20
+@export var rom_forehand_reach_max: float = 0.45
 @export var rom_backhand_reach_max: float = 0.70
 
 # ── Upper Body Tuning ─────────────────────────────────────────────────────────

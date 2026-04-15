@@ -6,9 +6,38 @@ extends CharacterBody3D
 
 # ── Blade Tuning ──────────────────────────────────────────────────────────────
 @export var blade_height: float = 0.0
-@export var plane_reach: float = 1.5
-@export var shoulder_offset: float = 0.35
+# Shoulder anchor offset from body center. The shoulder (top-hand anchor)
+# sits on the OPPOSITE side of the body from the blade: a left-handed shooter
+# (blade on −X) has the top hand on the right shoulder (+X), and vice versa.
+# Baseline ~0.22 m (half of adult shoulder-to-shoulder breadth).
+@export var shoulder_offset: float = 0.22
+# Shoulder Y in upper-body-local space. Positions the arm's anchor high on
+# the torso (near the top of the upper body mesh) so the visible arm spans
+# from the shoulder down to the hand rather than both points collapsing to
+# the same Y. With hand_rest_y = 0, a drop of ~0.5 m is natural; too large
+# and the arm may visibly stretch at max backhand reach (see
+# rom_backhand_reach_max interaction).
+@export var shoulder_height: float = 0.5
+# Blade length (heel to toe). The Blade Marker3D represents the heel (where
+# the shaft meets the blade); the blade mesh extends forward by this distance.
+# The puck plays at the contact point, which is blade_length * 0.5 forward
+# of the Marker3D along its local forward axis. Must match the blade mesh Z
+# size in Scenes/Skater.tscn.
+@export var blade_length: float = 0.30
 @export var wall_squeeze_threshold: float = 0.3
+
+# ── Arm Tuning ────────────────────────────────────────────────────────────────
+# Two-bone arm IK: shoulder → elbow → top_hand. Upper + forearm length should
+# sum to ≈ rom_backhand_reach_max (SkaterController) so the hand is always
+# within arm reach.
+@export var upper_arm_length: float = 0.33
+@export var forearm_length: float = 0.37
+# Pole direction for the elbow (upper-body local). Pulled toward the top-hand
+# side of the body (X sign flipped internally by handedness) and downward.
+@export var arm_pole_local: Vector3 = Vector3(0.2, -1.0, 0.0)
+# Base size of the arm bone meshes. scale.z is set per tick to the bone's
+# actual length; X/Y control arm thickness.
+@export var arm_mesh_thickness: float = 0.06
 
 # ── Body Check Tuning ─────────────────────────────────────────────────────────
 @export var weight: float = 1.0                   # dimensionless — scale up for heavy players
@@ -30,6 +59,17 @@ extends CharacterBody3D
 @onready var _upper_body_mesh: MeshInstance3D = $UpperBody/UpperBodyMesh
 @onready var _blade_mesh: MeshInstance3D = $UpperBody/Blade/MeshInstance3D
 
+# Top hand: the moving IK output. Positioned by the controller each tick.
+# If the scene file provides a `TopHand` Marker3D under UpperBody, we use it;
+# otherwise we create one programmatically. Created/resolved in _ready.
+var top_hand: Marker3D = null
+
+# Arm visual meshes (shoulder → elbow → top_hand). Created/resolved in
+# _ready; scene can override by placing `UpperArmMesh` / `ForearmMesh` under
+# UpperBody for custom materials.
+var upper_arm_mesh: MeshInstance3D = null
+var forearm_mesh: MeshInstance3D = null
+
 signal body_checked_player(victim: Skater, impact_force: float, hit_direction: Vector3)
 signal body_block_hit(body: Node3D)
 
@@ -45,8 +85,24 @@ var _blade_area: Area3D = null
 var _default_upper_body_y: float = 0.0
 
 func _ready() -> void:
-	var hand_sign: float = -1.0 if is_left_handed else 1.0
-	shoulder.position = Vector3(hand_sign * shoulder_offset, 0.0, 0.0)
+	# Shoulder anchors the top hand. The top hand lives on the OPPOSITE side
+	# from the blade: a left-handed shooter grips with the right hand on top,
+	# so the shoulder (anchor) is on the right (+X). Flipped for righties.
+	# Y is lifted to `shoulder_height` so the shoulder sits up on the torso,
+	# not down at the waist where the hand rests.
+	var top_hand_side_sign: float = 1.0 if is_left_handed else -1.0
+	shoulder.position = Vector3(top_hand_side_sign * shoulder_offset, shoulder_height, 0.0)
+
+	# Resolve or create the TopHand marker. It starts at the shoulder's XZ
+	# but at Y=0 (waist level) — the controller writes the IK-solved hand
+	# position every tick, this is just the initial pose before that runs.
+	top_hand = upper_body.get_node_or_null("TopHand") as Marker3D
+	if top_hand == null:
+		top_hand = Marker3D.new()
+		top_hand.name = "TopHand"
+		upper_body.add_child(top_hand)
+	top_hand.position = Vector3(shoulder.position.x, 0.0, 0.0)
+
 	_prev_blade_world_pos = upper_body.to_global(blade.position)
 	_default_upper_body_y = upper_body.position.y
 
@@ -58,6 +114,10 @@ func _ready() -> void:
 	_blade_area.name = "BladeArea"
 	_blade_area.collision_layer = Constants.LAYER_BLADE_AREAS
 	_blade_area.collision_mask = 0
+	# Offset the pickup sphere forward by half the blade length so it centers
+	# on mid-blade (the contact point) rather than the heel (Marker3D origin).
+	# Forward in the Blade node's local frame is -Z (set by look_at each tick).
+	_blade_area.position = Vector3(0.0, 0.0, -blade_length * 0.5)
 	var blade_shape = CollisionShape3D.new()
 	var blade_sphere = SphereShape3D.new()
 	blade_sphere.radius = 0.3
@@ -76,6 +136,25 @@ func _ready() -> void:
 	_body_block_area.add_child(block_shape)
 	add_child(_body_block_area)
 	_body_block_area.body_entered.connect(func(body: Node3D) -> void: body_block_hit.emit(body))
+
+	# Resolve or create the arm meshes. Same pattern as TopHand — scene can
+	# pre-place them to customize materials/size, otherwise we spawn a pair of
+	# thin box meshes whose Z is stretched per tick to match the bone length.
+	upper_arm_mesh = _resolve_or_create_bone_mesh("UpperArmMesh")
+	forearm_mesh = _resolve_or_create_bone_mesh("ForearmMesh")
+
+func _resolve_or_create_bone_mesh(node_name: String) -> MeshInstance3D:
+	var existing: MeshInstance3D = upper_body.get_node_or_null(node_name) as MeshInstance3D
+	if existing != null:
+		return existing
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = node_name
+	var box := BoxMesh.new()
+	# Base Z = 1.0; scale.z per tick stretches to the actual bone length.
+	box.size = Vector3(arm_mesh_thickness, arm_mesh_thickness, 1.0)
+	mesh_instance.mesh = box
+	upper_body.add_child(mesh_instance)
+	return mesh_instance
 
 func _physics_process(delta: float) -> void:
 	var blade_world_pos: Vector3 = upper_body.to_global(blade.position)
@@ -128,15 +207,36 @@ func set_blade_position(pos: Vector3) -> void:
 	blade.position = pos
 	# Rotate blade (and its children: mesh, BladeArea) to face along the shaft.
 	# Use horizontal projection so the blade stays upright despite blade_height offset.
+	# Shaft origin is now the top hand (IK output), not the fixed shoulder.
 	var blade_world: Vector3 = upper_body.to_global(pos)
-	var shoulder_world: Vector3 = upper_body.to_global(shoulder.position)
-	var shaft_horiz: Vector3 = blade_world - shoulder_world
+	var hand_world: Vector3 = upper_body.to_global(top_hand.position)
+	var shaft_horiz: Vector3 = blade_world - hand_world
 	shaft_horiz.y = 0.0
 	if shaft_horiz.length() > 0.001:
 		blade.look_at(blade_world + shaft_horiz.normalized(), Vector3.UP)
 
 func get_blade_position() -> Vector3:
 	return blade.position
+
+# World position where the puck plays on the blade — mid-blade by default.
+# The Blade Marker3D is at the heel (shaft-to-blade joint); the contact point
+# is blade_length * 0.5 forward along the blade's local forward axis (-Z in
+# local, which set_blade_position() orients along the shaft direction each
+# tick via look_at).
+func get_blade_contact_global() -> Vector3:
+	var heel_world: Vector3 = upper_body.to_global(blade.position)
+	var forward: Vector3 = -blade.global_transform.basis.z
+	forward.y = 0.0
+	if forward.length() < 0.001:
+		return heel_world
+	return heel_world + forward.normalized() * (blade_length * 0.5)
+
+# ── Top Hand ──────────────────────────────────────────────────────────────────
+func set_top_hand_position(pos: Vector3) -> void:
+	top_hand.position = pos
+
+func get_top_hand_position() -> Vector3:
+	return top_hand.position
 
 # ── Upper Body ────────────────────────────────────────────────────────────────
 func set_upper_body_rotation(angle: float) -> void:
@@ -172,11 +272,41 @@ func get_blade_wall_normal() -> Vector3:
 
 # ── Stick Mesh ────────────────────────────────────────────────────────────────
 func update_stick_mesh() -> void:
-	var stick_origin: Vector3 = shoulder.position
+	# Stick runs from the top hand (IK output) to the blade.
+	var stick_origin: Vector3 = top_hand.position
 	var to_blade: Vector3 = blade.position - stick_origin
 	stick_mesh.position = stick_origin + to_blade / 2.0
 	stick_mesh.scale.z = to_blade.length()
 	stick_mesh.look_at(upper_body.to_global(blade.position), Vector3.UP)
+
+# ── Arm Mesh ──────────────────────────────────────────────────────────────────
+# Renders the two-bone arm between the shoulder (anchor) and top_hand (IK
+# output). Elbow position from TwoBoneIK.solve_elbow; pole direction is pulled
+# toward the top-hand side of the body and slightly downward so the elbow
+# hangs naturally.
+func update_arm_mesh() -> void:
+	var shoulder_w: Vector3 = upper_body.to_global(shoulder.position)
+	var hand_w: Vector3 = upper_body.to_global(top_hand.position)
+	# Flip the pole's X toward the top-hand side of the body. Pole is expressed
+	# as if the top hand were on +X; handedness flip mirrors for righties.
+	var pole_local: Vector3 = arm_pole_local
+	pole_local.x *= 1.0 if is_left_handed else -1.0
+	var pole_w: Vector3 = upper_body.global_transform.basis * pole_local
+	var elbow_w: Vector3 = TwoBoneIK.solve_elbow(
+			shoulder_w, hand_w, upper_arm_length, forearm_length, pole_w)
+	_update_bone_mesh(upper_arm_mesh, shoulder_w, elbow_w)
+	_update_bone_mesh(forearm_mesh, elbow_w, hand_w)
+
+func _update_bone_mesh(mesh: MeshInstance3D, a_world: Vector3, b_world: Vector3) -> void:
+	if mesh == null:
+		return
+	var a_local: Vector3 = upper_body.to_local(a_world)
+	var b_local: Vector3 = upper_body.to_local(b_world)
+	var length: float = (b_local - a_local).length()
+	mesh.position = (a_local + b_local) * 0.5
+	mesh.scale = Vector3(1.0, 1.0, maxf(length, 0.001))
+	if (b_world - a_world).length() > 0.0001:
+		mesh.look_at(b_world, Vector3.UP)
 
 # ── Coordinate Helpers ────────────────────────────────────────────────────────
 func upper_body_to_global(local_pos: Vector3) -> Vector3:
@@ -210,7 +340,10 @@ func set_block_stance(active: bool) -> void:
 	_blade_area.collision_layer = 0 if active else Constants.LAYER_BLADE_AREAS
 
 func _apply_ghost_visual(ghost: bool) -> void:
-	var meshes: Array[MeshInstance3D] = [_upper_body_mesh, _blade_mesh, stick_mesh]
+	var meshes: Array[MeshInstance3D] = [
+			_upper_body_mesh, _blade_mesh, stick_mesh,
+			upper_arm_mesh, forearm_mesh,
+		]
 	for mesh: MeshInstance3D in meshes:
 		if mesh == null:
 			continue

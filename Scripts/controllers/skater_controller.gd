@@ -27,14 +27,34 @@ enum State {
 # ── Facing Tuning ─────────────────────────────────────────────────────────────
 @export var facing_drag_speed: float = 3.0
 
-# ── Blade Tuning ──────────────────────────────────────────────────────────────
+# ── Blade / Stick / Top-Hand IK Tuning ────────────────────────────────────────
+# Blade Y in upper-body-local space. Locked — blade always plays along ice.
 @export var blade_height: float = -0.95
-@export var plane_reach: float = 1.5
-@export var shoulder_offset: float = 0.35
-@export var blade_forehand_limit: float = 90.0
-@export var blade_backhand_limit: float = 80.0
-@export var max_mouse_distance: float = 4.0
-@export var min_blade_reach: float = 0.3
+# Fixed, rigid shaft length (hand to blade heel). Baseline 1.30 m ≈ adult
+# senior stick shaft (butt-to-heel). The blade mesh extends forward from the
+# heel; see Skater.blade_length. Total hand-to-toe is stick_length + blade_length.
+@export var stick_length: float = 1.30
+# Hand Y in upper-body-local space. Baseline resting position (used in the
+# FAR regime). In the CLOSE regime the hand rises toward `hand_y_max` so the
+# stick tilts more vertical and the blade can tuck in close to the body.
+@export var hand_rest_y: float = 0.0
+# Ceiling for hand Y in the CLOSE regime. When aiming very close to the
+# skater, the hand rises to shorten the stick's horizontal projection; this
+# cap keeps the pose anatomical (hand won't climb past chin level). With
+# default stick_length = 1.30 m, hand_y_max = 0.30 → min horizontal stick
+# reach ≈ 0.36 m.
+@export var hand_y_max: float = 0.30
+# Asymmetric ROM for the top hand (measured from shoulder in upper-body-local
+# horizontal plane, expressed in "forehand side = positive angle" convention).
+# Forehand cross-body reach is anatomically limited; backhand same-side reach
+# allows full arm extension, supporting one-handed backhand plays.
+# Note: the upper body twists toward the blade (upper_body_twist_ratio = 0.5),
+# which effectively reduces how much angular ROM the hand needs — these values
+# assume that twist is active.
+@export var rom_forehand_angle_max_deg: float = 90.0
+@export var rom_backhand_angle_max_deg: float = 120.0
+@export var rom_forehand_reach_max: float = 0.45
+@export var rom_backhand_reach_max: float = 0.70
 
 # ── Upper Body Tuning ─────────────────────────────────────────────────────────
 @export var upper_body_twist_ratio: float = 0.5
@@ -134,6 +154,7 @@ func get_network_state() -> Array:
 	state.rotation = skater.global_rotation
 	state.velocity = skater.velocity
 	state.blade_position = skater.get_blade_position()
+	state.top_hand_position = skater.get_top_hand_position()
 	state.upper_body_rotation_y = skater.get_upper_body_rotation()
 	state.facing = skater.get_facing()
 	state.last_processed_sequence = last_processed_sequence
@@ -337,8 +358,9 @@ func _enter_slapper_charge() -> void:
 func _release_wrister(input: InputState) -> void:
 	if has_puck:
 		var blade_world: Vector3 = skater.upper_body_to_global(skater.get_blade_position())
-		var shoulder_world: Vector3 = skater.upper_body_to_global(skater.shoulder.position)
-		var aim_dir: Vector3 = blade_world - shoulder_world
+		# Aim along the stick shaft — top_hand (moving IK grip point) to blade.
+		var hand_world: Vector3 = skater.upper_body_to_global(skater.get_top_hand_position())
+		var aim_dir: Vector3 = blade_world - hand_world
 		aim_dir.y = 0.0
 		var result := ShotMechanics.release_wrister(
 				skater.global_position,
@@ -372,14 +394,28 @@ func _release_slapper(input: InputState) -> void:
 	_follow_through_timer = follow_through_duration
 
 func _apply_slapper_blade_position() -> void:
-	var hand_sign: float = -1.0 if skater.is_left_handed else 1.0
-	var pos: Vector3 = skater.shoulder.position + Vector3(hand_sign * slapper_blade_x, blade_height, slapper_blade_z)
+	# Slapper has a fixed blade pose offset from the shoulder — separate from
+	# the IK flow (this is a charged pre-shot pose, not player-aimed). Hand
+	# sits at the shoulder XZ at `hand_rest_y`; blade XZ is offset from the
+	# shoulder by slapper_blade_x/z, but its Y is pinned to `blade_height`
+	# directly (not summed with shoulder.y) so the blade always lands on the
+	# ice regardless of where the shoulder anchor sits vertically.
+	var blade_side_sign: float = -1.0 if skater.is_left_handed else 1.0
+	var pos := Vector3(
+			skater.shoulder.position.x + blade_side_sign * slapper_blade_x,
+			blade_height,
+			skater.shoulder.position.z + slapper_blade_z)
+	var hand_pos := Vector3(skater.shoulder.position.x, hand_rest_y, skater.shoulder.position.z)
+	skater.set_top_hand_position(hand_pos)
 	skater.set_blade_position(pos)
+	skater.update_arm_mesh()
 
 func _is_in_slapper_state() -> bool:
 	return _state in [State.SLAPPER_CHARGE_WITH_PUCK, State.SLAPPER_CHARGE_WITHOUT_PUCK]
 
-# ── Blade: From Mouse ─────────────────────────────────────────────────────────
+# ── Blade: From Mouse (Top-Hand IK) ───────────────────────────────────────────
+# Input is treated as a desired blade position. The top hand is solved as a
+# consequence, clamped to an asymmetric ROM. See domain/rules/top_hand_ik.gd.
 func _apply_blade_from_mouse(input: InputState, delta: float) -> void:
 	var mouse_world: Vector3 = input.mouse_world_pos
 	mouse_world.y = 0.0
@@ -391,50 +427,91 @@ func _apply_blade_from_mouse(input: InputState, delta: float) -> void:
 	if to_mouse.length() < 0.01:
 		return
 
-	var local_to_mouse: Vector3 = skater.upper_body_to_local(shoulder_world + to_mouse.normalized())
-	local_to_mouse.y = 0.0
-	var raw_angle: float = atan2((local_to_mouse - skater.shoulder.position).x, -(local_to_mouse - skater.shoulder.position).z)
+	# Convert mouse world position into upper-body-local XZ for the solver.
+	var mouse_local: Vector3 = skater.upper_body_to_local(mouse_world)
+	var desired_blade_xz := Vector2(mouse_local.x, mouse_local.z)
 
-	var hand_sign: float = -1.0 if skater.is_left_handed else 1.0
-	var handed_angle: float = raw_angle * hand_sign
-	var clamped_handed: float = clampf(handed_angle, -deg_to_rad(blade_backhand_limit), deg_to_rad(blade_forehand_limit))
-	var clamped_angle: float = clamped_handed * hand_sign
+	var blade_side_sign: float = -1.0 if skater.is_left_handed else 1.0
 
+	# Facing drag: if the player aims past the hand's angular ROM, rotate the
+	# body so the target comes into range. Skipped during shot-aim states
+	# (wrister aim / slapper charge) where the body shouldn't twist.
 	if not _is_in_slapper_state() and _state != State.WRISTER_AIM:
-		if abs(handed_angle) > abs(clamped_handed):
-			var excess: float = (handed_angle - clamped_handed) * hand_sign
-			_facing = _facing.rotated(excess * facing_drag_speed * delta).normalized()
-			skater.set_facing(_facing)
+		var shoulder_xz := Vector2(skater.shoulder.position.x, skater.shoulder.position.z)
+		var delta_xz: Vector2 = desired_blade_xz - shoulder_xz
+		if delta_xz.length() > 0.001:
+			var angle_raw: float = atan2(delta_xz.x, -delta_xz.y)
+			var angle_to_forehand: float = angle_raw * blade_side_sign
+			var fore_limit: float = deg_to_rad(rom_forehand_angle_max_deg)
+			var back_limit: float = deg_to_rad(rom_backhand_angle_max_deg)
+			var clamped_forehand: float = clampf(angle_to_forehand, -back_limit, fore_limit)
+			if not is_equal_approx(angle_to_forehand, clamped_forehand):
+				var excess: float = (angle_to_forehand - clamped_forehand) * blade_side_sign
+				_facing = _facing.rotated(excess * facing_drag_speed * delta).normalized()
+				skater.set_facing(_facing)
 
-	var clamped_dir: Vector3 = Vector3(sin(clamped_angle), 0.0, -cos(clamped_angle))
-	var t: float = clampf(to_mouse.length() / max_mouse_distance, 0.0, 1.0)
-	var reach: float = lerpf(min_blade_reach, plane_reach, t)
-	var clamped_target: Vector3 = skater.shoulder.position + clamped_dir * reach
-	clamped_target.y = blade_height
+	# Solve IK — returns (hand, blade) in upper-body-local space.
+	var ik: Dictionary = TopHandIK.solve(
+			skater.shoulder.position,
+			desired_blade_xz,
+			blade_side_sign,
+			_ik_config())
+	var hand_local: Vector3 = ik.hand
+	var blade_local: Vector3 = ik.blade
 
-	var intended_pos: Vector3 = clamped_target
-	clamped_target = skater.clamp_blade_to_walls(clamped_target)
+	# Wall clamp on the solved blade. Wall-pin auto-release (when carrying).
+	var intended_blade: Vector3 = blade_local
+	var wall_clamped: Vector3 = skater.clamp_blade_to_walls(blade_local)
 
 	if has_puck:
-		var squeeze: float = skater.get_wall_squeeze(intended_pos, clamped_target)
+		var squeeze: float = skater.get_wall_squeeze(intended_blade, wall_clamped)
 		if ShotMechanics.should_release_on_wall_pin(squeeze, skater.wall_squeeze_threshold):
 			var wall_normal: Vector3 = skater.get_blade_wall_normal()
 			if wall_normal.length() > 0.0:
 				_do_release(wall_normal.normalized(), 3.0)
 			else:
-				var nudge: Vector3 = skater.global_transform.basis * (-clamped_target.normalized())
+				var nudge: Vector3 = skater.global_transform.basis * (-wall_clamped.normalized())
 				_do_release(nudge.normalized(), 3.0)
 
-	skater.set_blade_position(clamped_target)
-	_blade_relative_angle = clamped_angle
+	# When the blade got pulled back by the wall clamp, slide the hand by the
+	# same horizontal offset so |hand − blade| stays at stick_horiz. Prevents
+	# the stick mesh from compressing; reads as "pulling the stick back".
+	var clamp_delta_xz := Vector3(
+			wall_clamped.x - intended_blade.x, 0.0, wall_clamped.z - intended_blade.z)
+	if clamp_delta_xz.length_squared() > 0.0:
+		hand_local.x += clamp_delta_xz.x
+		hand_local.z += clamp_delta_xz.z
 
-# ── Blade: From Stored Relative Angle ────────────────────────────────────────
+	skater.set_top_hand_position(hand_local)
+	skater.set_blade_position(wall_clamped)
+	skater.update_arm_mesh()
+
+	# Store the blade's bearing from the shoulder for follow-through.
+	var bearing: Vector3 = wall_clamped - skater.shoulder.position
+	if Vector2(bearing.x, bearing.z).length() > 0.001:
+		_blade_relative_angle = atan2(bearing.x, -bearing.z)
+
+# ── Blade: From Stored Relative Angle (follow-through) ───────────────────────
+# Keeps the stick length invariant: hand rests at shoulder, blade sits
+# stick_horiz away along the stored bearing.
 func _apply_blade_from_relative_angle() -> void:
-	var local_dir: Vector3 = Vector3(sin(_blade_relative_angle), 0.0, -cos(_blade_relative_angle))
-	var local_target: Vector3 = skater.shoulder.position + local_dir * plane_reach
-	local_target.y = blade_height
-	local_target = skater.clamp_blade_to_walls(local_target)
+	var stick_horiz: float = _stick_horiz()
+	var local_dir := Vector3(sin(_blade_relative_angle), 0.0, -cos(_blade_relative_angle))
+	var hand_pos := skater.shoulder.position
+	hand_pos.y = hand_rest_y
+	var intended_target: Vector3 = hand_pos + local_dir * stick_horiz
+	intended_target.y = blade_height
+	var local_target: Vector3 = skater.clamp_blade_to_walls(intended_target)
+	# Same wall-clamp hand retraction as _apply_blade_from_mouse so follow-
+	# through keeps stick length constant when pinned.
+	var clamp_delta_xz := Vector3(
+			local_target.x - intended_target.x, 0.0, local_target.z - intended_target.z)
+	if clamp_delta_xz.length_squared() > 0.0:
+		hand_pos.x += clamp_delta_xz.x
+		hand_pos.z += clamp_delta_xz.z
+	skater.set_top_hand_position(hand_pos)
 	skater.set_blade_position(local_target)
+	skater.update_arm_mesh()
 
 # ── Upper Body ────────────────────────────────────────────────────────────────
 func _apply_upper_body(delta: float) -> void:
@@ -520,3 +597,23 @@ func _slapper_config() -> Dictionary:
 		"max_slapper_charge_time": max_slapper_charge_time,
 		"slapper_elevation": slapper_elevation,
 	}
+
+func _ik_config() -> Dictionary:
+	return {
+		"stick_length": stick_length,
+		"blade_y": blade_height,
+		"hand_rest_y": hand_rest_y,
+		"hand_y_max": hand_y_max,
+		"rom_forehand_angle_max": deg_to_rad(rom_forehand_angle_max_deg),
+		"rom_backhand_angle_max": deg_to_rad(rom_backhand_angle_max_deg),
+		"rom_forehand_reach_max": rom_forehand_reach_max,
+		"rom_backhand_reach_max": rom_backhand_reach_max,
+	}
+
+# Horizontal projection of the stick onto the XZ plane, given the fixed
+# vertical drop from hand to blade. Used by follow-through to keep stick
+# length consistent with the IK solver.
+func _stick_horiz() -> float:
+	var drop: float = hand_rest_y - blade_height
+	var sq: float = stick_length * stick_length - drop * drop
+	return sqrt(maxf(sq, 0.0001))

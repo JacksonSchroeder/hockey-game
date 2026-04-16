@@ -30,8 +30,12 @@ enum State {
 @export var facing_drag_speed: float = 3.0
 
 # ── Blade / Stick / Top-Hand IK Tuning ────────────────────────────────────────
-# Blade Y in upper-body-local space. Locked — blade always plays along ice.
-@export var blade_height: float = -0.95
+# Blade world-space Y. 0.0 = ice surface. Converted to upper-body-local via
+# _blade_y_local() before any IK or pose call, so the blade always sits at a
+# fixed world height regardless of where the upper body anchor is placed in the
+# scene. This also means crouching (block stance) doesn't pull the blade
+# through the ice — the local Y compensates automatically.
+@export var blade_height: float = 0.0
 # Fixed, rigid shaft length (hand to blade heel). Baseline 1.30 m ≈ adult
 # senior stick shaft (butt-to-heel). The blade mesh extends forward from the
 # heel; see Skater.blade_length. Total hand-to-toe is stick_length + blade_length.
@@ -39,7 +43,11 @@ enum State {
 # Hand Y in upper-body-local space. Baseline resting position (used in the
 # FAR regime). In the CLOSE regime the hand rises toward `hand_y_max` so the
 # stick tilts more vertical and the blade can tuck in close to the body.
-@export var hand_rest_y: float = 0.0
+# With the upper body at ~0.95 m world Y and blade at 0.0 (ice), -0.17 gives
+# a hand world Y of ~0.78 m and a stick angle of ~37° — shallower than the
+# previous ~47° and closer to a real hockey address position. Horizontal reach
+# at rest rises from ~0.89 m to ~1.04 m.
+@export var hand_rest_y: float = -0.17
 # Ceiling for hand Y in the CLOSE regime. When aiming very close to the
 # skater, the hand rises to shorten the stick's horizontal projection; this
 # cap keeps the pose anatomical (hand won't climb past chin level). With
@@ -79,7 +87,7 @@ enum State {
 # ── Upper Body Tuning ─────────────────────────────────────────────────────────
 @export var upper_body_twist_ratio: float = 1.0
 @export var upper_body_max_twist_deg: float = 67.0   # caps rotation so extreme angles don't over-rotate
-@export var upper_body_return_speed: float = 10.0
+@export var upper_body_return_speed: float = 6.0
 @export var upper_body_lean_max_deg: float = 8.0
 @export var upper_body_lean_return_speed: float = 8.0
 
@@ -411,7 +419,7 @@ func _apply_wrister_follow_through() -> void:
 	var hand_pos := skater.shoulder.position
 	hand_pos.y = hand_rest_y + arc * wrister_follow_through_hand_y
 	var intended_target: Vector3 = hand_pos + local_dir * stick_horiz
-	intended_target.y = blade_height + arc * wrister_follow_through_blade_lift
+	intended_target.y = _blade_y_local() + arc * wrister_follow_through_blade_lift
 	var local_target: Vector3 = skater.clamp_blade_to_walls(intended_target)
 	var clamp_delta_xz := Vector3(
 		local_target.x - intended_target.x, 0.0, local_target.z - intended_target.z)
@@ -429,7 +437,7 @@ func _apply_slapper_follow_through() -> void:
 		shot_xz = shot_xz.normalized()
 	var blade_pos := Vector3(
 		skater.shoulder.position.x + blade_side_sign * slapper_blade_x + shot_xz.x * t * 0.4,
-		lerpf(slapper_wind_up_height, blade_height, smoothstep(0.0, 1.0, t)),
+		lerpf(slapper_wind_up_height, _blade_y_local(), smoothstep(0.0, 1.0, t)),
 		skater.shoulder.position.z + slapper_blade_z + shot_xz.y * t * 0.4)
 	var hand_pos := Vector3(
 		skater.shoulder.position.x,
@@ -573,12 +581,11 @@ func _apply_slapper_blade_position() -> void:
 	# Slapper has a fixed blade pose offset from the shoulder — separate from
 	# the IK flow (this is a charged pre-shot pose, not player-aimed). Hand
 	# sits at the shoulder XZ at `hand_rest_y`; blade XZ is offset from the
-	# shoulder by slapper_blade_x/z, but its Y is pinned to `blade_height`
-	# directly (not summed with shoulder.y) so the blade always lands on the
-	# ice regardless of where the shoulder anchor sits vertically.
+	# shoulder by slapper_blade_x/z; Y lerps from _blade_y_local() (ice) up to
+	# slapper_wind_up_height during the wind-up charge.
 	var blade_side_sign: float = -1.0 if skater.is_left_handed else 1.0
 	var wind_up_t: float = clampf(_slapper_charge_timer / slapper_wind_up_time, 0.0, 1.0)
-	var current_blade_y: float = lerpf(blade_height, slapper_wind_up_height, wind_up_t)
+	var current_blade_y: float = lerpf(_blade_y_local(), slapper_wind_up_height, wind_up_t)
 	var pos := Vector3(
 			skater.shoulder.position.x + blade_side_sign * slapper_blade_x,
 			current_blade_y,
@@ -659,7 +666,7 @@ func _apply_blade_from_relative_angle() -> void:
 	var hand_pos := skater.shoulder.position
 	hand_pos.y = hand_rest_y
 	var intended_target: Vector3 = hand_pos + local_dir * stick_horiz
-	intended_target.y = blade_height
+	intended_target.y = _blade_y_local()
 	var local_target: Vector3 = skater.clamp_blade_to_walls(intended_target)
 	# Same wall-clamp hand retraction as _apply_blade_from_mouse so follow-
 	# through keeps stick length constant when pinned.
@@ -817,10 +824,16 @@ func _slapper_config() -> Dictionary:
 		"slapper_elevation": slapper_elevation,
 	}
 
+# Converts the world-space blade_height to upper-body-local Y.
+# Uses the upper body's world Y so the result is correct regardless of where
+# the skater's CharacterBody3D origin sits above the ice.
+func _blade_y_local() -> float:
+	return blade_height - skater.upper_body.global_position.y
+
 func _ik_config() -> Dictionary:
 	return {
 		"stick_length": stick_length,
-		"blade_y": blade_height,
+		"blade_y": _blade_y_local(),
 		"hand_rest_y": hand_rest_y,
 		"hand_y_max": hand_y_max,
 		"rom_forehand_angle_max": deg_to_rad(rom_forehand_angle_max_deg),
@@ -871,6 +884,6 @@ func _update_bottom_hand() -> void:
 # vertical drop from hand to blade. Used by follow-through to keep stick
 # length consistent with the IK solver.
 func _stick_horiz() -> float:
-	var drop: float = hand_rest_y - blade_height
+	var drop: float = hand_rest_y - _blade_y_local()
 	var sq: float = stick_length * stick_length - drop * drop
 	return sqrt(maxf(sq, 0.0001))

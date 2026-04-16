@@ -5,7 +5,6 @@ extends CharacterBody3D
 @export var is_left_handed: bool = true
 
 # ── Blade Tuning ──────────────────────────────────────────────────────────────
-@export var blade_height: float = 0.0
 # Shoulder anchor offset from body center. The shoulder (top-hand anchor)
 # sits on the OPPOSITE side of the body from the blade: a left-handed shooter
 # (blade on −X) has the top hand on the right shoulder (+X), and vice versa.
@@ -13,10 +12,10 @@ extends CharacterBody3D
 @export var shoulder_offset: float = 0.22
 # Shoulder Y in upper-body-local space. Positions the arm's anchor high on
 # the torso (near the top of the upper body mesh) so the visible arm spans
-# from the shoulder down to the hand rather than both points collapsing to
-# the same Y. With hand_rest_y = 0, a drop of ~0.5 m is natural; too large
-# and the arm may visibly stretch at max backhand reach (see
-# rom_backhand_reach_max interaction).
+# from the shoulder down to the hand. Vertical drop from shoulder to hand at
+# rest = shoulder_height − hand_rest_y (currently 0.35 − (−0.17) = 0.52 m).
+# If rom_backhand_reach_max is raised, verify sqrt(drop² + reach²) stays
+# under upper_arm_length + forearm_length to avoid visible arm stretch.
 @export var shoulder_height: float = 0.35
 # Blade length (heel to toe). The Blade Marker3D represents the heel (where
 # the shaft meets the blade); the blade mesh extends forward by this distance.
@@ -28,11 +27,11 @@ extends CharacterBody3D
 
 # ── Arm Tuning ────────────────────────────────────────────────────────────────
 # Two-bone arm IK: shoulder → elbow → top_hand. Sum must exceed
-# sqrt(rom_backhand_reach_max² + shoulder_height²) to avoid stretch at full
-# backhand extension. At defaults (0.80m sum, 0.35m drop): max horizontal
-# reach before stretch = sqrt(0.80²−0.35²) ≈ 0.719m > rom_backhand_reach_max.
-@export var upper_arm_length: float = 0.40
-@export var forearm_length: float = 0.44
+# sqrt(drop² + rom_backhand_reach_max²) where drop = shoulder_height − hand_rest_y.
+# Current drop = 0.35 − (−0.17) = 0.52 m; max safe reach = sqrt(0.90²−0.52²) ≈ 0.735 m,
+# which clears rom_backhand_reach_max (0.70 m) with headroom.
+@export var upper_arm_length: float = 0.44
+@export var forearm_length: float = 0.46
 # Pole direction for the elbow (upper-body local). Pulled toward the top-hand
 # side of the body (X sign flipped internally by handedness) and downward.
 @export var arm_pole_local: Vector3 = Vector3(0.2, -1.0, 0.0)

@@ -126,12 +126,14 @@ func _on_puck_stripped(ex_carrier: Skater) -> void:
 	puck_stripped_from.emit(peer_id)
 
 # ── State Serialization ───────────────────────────────────────────────────────
-func get_state() -> Array:
+# Returns the typed network state object. Flattening to Array happens at the
+# RPC boundary (GameManager.get_world_state), not here.
+func get_state() -> PuckNetworkState:
 	var state := PuckNetworkState.new()
 	state.position = puck.get_puck_position()
 	state.velocity = puck.get_puck_velocity()
 	state.carrier_peer_id = _carrier_peer_id
-	return state.to_array()
+	return state
 
 func apply_state(state: PuckNetworkState) -> void:
 	if is_server:

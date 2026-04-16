@@ -22,7 +22,7 @@ func _process(_delta: float) -> void:
 		_pending_elevation_down = true
 
 func gather() -> InputState:
-	var state = InputState.new()
+	var state := InputState.new()
 	state.move_vector = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	state.shoot_held = Input.is_action_pressed("shoot")
 	state.shoot_pressed = _pending_shoot_pressed

@@ -20,10 +20,11 @@ func to_array() -> Array:
 		upper_body_rotation_y,
 		facing,
 		last_processed_sequence,
-		is_ghost	]
+		is_ghost,
+	]
 
 static func from_array(data: Array) -> SkaterNetworkState:
-	var state = SkaterNetworkState.new()
+	var state := SkaterNetworkState.new()
 	state.position = data[0]
 	state.rotation = data[1]
 	state.velocity = data[2]

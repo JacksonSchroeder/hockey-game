@@ -16,7 +16,6 @@ enum State {
 @export var thrust: float = 12.0
 @export var friction: float = 4.0
 @export var max_speed: float = 11.0
-@export var rotation_speed: float = 6.0
 @export var move_deadzone: float = 0.1
 @export var brake_multiplier: float = 5.0
 @export var puck_carry_speed_multiplier: float = 0.92
@@ -26,7 +25,7 @@ enum State {
 # ── Facing Tuning ─────────────────────────────────────────────────────────────
 # How fast facing drifts toward the cursor during normal play. Lower = more
 # skating lag before the body re-orients (more backskate/crossover time).
-# Shift snaps at rotation_speed instead. Good range: 1.0 (very lazy) – 3.0 (snappy).
+# Shift freezes facing entirely (see _apply_facing). Good range: 1.0 (very lazy) – 3.0 (snappy).
 @export var facing_drag_speed: float = 3.0
 
 # ── Blade / Stick / Top-Hand IK Tuning ────────────────────────────────────────
@@ -750,9 +749,8 @@ func _apply_facing(input: InputState, delta: float) -> void:
 			mouse_world.x - skater.global_position.x,
 			mouse_world.z - skater.global_position.z
 		)
-		if to_mouse.length() > move_deadzone:
-			var drift_speed: float = rotation_speed if input.facing_held else facing_drag_speed
-			_facing = _facing.lerp(to_mouse.normalized(), drift_speed * delta).normalized()
+		if to_mouse.length() > move_deadzone and not input.facing_held:
+			_facing = _facing.lerp(to_mouse.normalized(), facing_drag_speed * delta).normalized()
 		skater.set_facing(_facing)
 		var turn_delta: float = angle_difference(prev_angle, skater.rotation.y)
 		_lower_body_lag = clampf(

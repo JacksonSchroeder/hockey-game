@@ -379,14 +379,9 @@ func on_game_reset() -> void:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 func _generate_player_colors(team_id: int) -> Dictionary:
-	var existing: int = 0
-	for pid: int in players:
-		if players[pid].team.team_id == team_id:
-			existing += 1
-	var jitter: float = randf_range(-1.0, 1.0)
 	return {
-		"primary": PlayerRules.generate_primary_color(team_id, existing, jitter),
-		"secondary": PlayerRules.generate_secondary_color(team_id, existing, jitter),
+		"primary": PlayerRules.generate_primary_color(team_id),
+		"secondary": PlayerRules.generate_secondary_color(team_id),
 	}
 
 # ── World State ───────────────────────────────────────────────────────────────

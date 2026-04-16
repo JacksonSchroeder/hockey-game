@@ -65,10 +65,14 @@ Pucks coming in fast deflect off your blade instead of sticking. Move your stick
 - Behavioral goalie AI (state machine, Buckley depth system, butterfly, RVH) — server-authoritative with client interpolation, tracking lag for beatable positioning
 - Goal detection, score tracking, and faceoff sequences — goals pause play, players teleport to faceoff dots, puck goes live on pickup
 - Period-based game loop — 3 periods × 4 minutes; clock pauses during dead-puck phases; each period opens with a faceoff; game locks after the final period until reset
-- Scorebug HUD — score, period, clock (MM:SS), and phase label (GOAL! / END OF PERIOD / GAME OVER / FACEOFF) in top-left corner
+- Broadcast-style scorebug — period ordinal, clock, and team scores in a horizontal dark panel (top-left); phase banner (GOAL! / FACEOFF / etc.) appears centered below it
 - Elevation indicator — bottom-center HUD badge when elevated shot mode is active
 - Main menu — host, join (with IP input), and offline from the title screen
-- Player colors — two-color skaters: home team (0) gets a red jersey/arms with black legs and helmet; away team (1) gets a white jersey/arms with blue legs and helmet (each player a distinct shade within their team's hue band)
+- Team colors — Penguins gold + black (home) vs Leafs blue + white (away); all teammates match
+- Local player ring — gray semi-transparent ring on the ice under your skater only
+- Stadium lighting — 6 overhead SpotLights in a 2×3 grid; warm white, soft falloff, shadows on center pair
+- Anti-aliased ice markings — procedural rink texture at 40px/m with sub-pixel smooth circles and lines; mipmapped for clean rendering at all zoom levels
+- MSAA 4x — hardware anti-aliasing for smooth geometry edges
 - Host reset button — top-right HUD button (host only) that zeroes the score and restarts from faceoff
 - Offsides ghost — skaters past the blue line without the puck become transparent ghosts that can't interact with the puck or other players until they retreat or the puck enters the zone
 - Hybrid icing — shooting from your own half past the opponent's goal line triggers a race: if the defending team's closest player is nearer the goal line, your entire team is ghosted for 3 seconds; if you beat them back to the puck, icing is waved off

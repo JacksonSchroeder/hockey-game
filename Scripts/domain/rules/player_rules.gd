@@ -10,33 +10,21 @@ const MAX_PER_TEAM: int = 3
 static func assign_team(team0_count: int, team1_count: int) -> int:
 	return 0 if team0_count <= team1_count else 1
 
-# Primary color: jersey, arms, blade.
-#   Team 0 (home) = red shades (hue 340°–380°, slot-based)
-#   Team 1 (away) = fixed white
-# `jitter` is a normalized value in [-1, 1]; the caller passes
-# `randf_range(-1.0, 1.0)` at runtime, 0 in deterministic tests.
-static func generate_primary_color(team_id: int, existing_count: int, jitter: float) -> Color:
-	if team_id == 1:
-		return Color(0.95, 0.95, 0.95)
-	var hue_min_deg: float = 340.0
-	var hue_max_deg: float = 380.0
-	var slot_size: float = (hue_max_deg - hue_min_deg) / MAX_PER_TEAM
-	var slot_center: float = hue_min_deg + (existing_count + 0.5) * slot_size
-	var hue_deg: float = slot_center + jitter * slot_size * 0.25
-	return Color.from_hsv(fmod(hue_deg / 360.0, 1.0), 0.85, 0.90)
-
-# Secondary color: legs and helmet (DirectionIndicator).
-#   Team 0 (home) = fixed near-black
-#   Team 1 (away) = blue shades (hue 200°–260°, slot-based)
-static func generate_secondary_color(team_id: int, existing_count: int, jitter: float) -> Color:
+# Primary color: jersey, arms, blade. Fixed per team — all teammates match.
+#   Team 0 (home) = Pittsburgh Penguins Vegas Gold (#FFB81C)
+#   Team 1 (away) = Toronto Maple Leafs Blue (#003E7E)
+static func generate_primary_color(team_id: int) -> Color:
 	if team_id == 0:
-		return Color(0.08, 0.08, 0.08)
-	var hue_min_deg: float = 200.0
-	var hue_max_deg: float = 260.0
-	var slot_size: float = (hue_max_deg - hue_min_deg) / MAX_PER_TEAM
-	var slot_center: float = hue_min_deg + (existing_count + 0.5) * slot_size
-	var hue_deg: float = slot_center + jitter * slot_size * 0.25
-	return Color.from_hsv(hue_deg / 360.0, 0.80, 0.90)
+		return Color(1.000, 0.722, 0.110)  # Penguins Vegas Gold #FFB81C
+	return Color(0.000, 0.243, 0.494)      # Leafs Blue #003E7E
+
+# Secondary color: legs and helmet (DirectionIndicator). Fixed per team.
+#   Team 0 (home) = Penguins Black
+#   Team 1 (away) = Leafs White
+static func generate_secondary_color(team_id: int) -> Color:
+	if team_id == 0:
+		return Color(0.06, 0.06, 0.06)  # Penguins Black
+	return Color(1.00, 1.00, 1.00)      # Leafs White
 
 # Looks up the faceoff start position for a slot index.
 static func faceoff_position_for_slot(slot: int) -> Vector3:

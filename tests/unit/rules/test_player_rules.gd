@@ -19,66 +19,39 @@ func test_lopsided_filled_to_smaller() -> void:
 
 # ── generate_primary_color ───────────────────────────────────────────────────
 
-func test_team_0_primary_in_red_range() -> void:
-	# Team 0 hue 340-380° → normalized 0.944-1.056 (wraps). Red-dominant.
-	var c: Color = PlayerRules.generate_primary_color(0, 0, 0.0)
-	assert_true(c.r > 0.5, "red channel should be dominant, got r=%f" % c.r)
+func test_team_0_primary_is_gold() -> void:
+	var c: Color = PlayerRules.generate_primary_color(0)
+	assert_true(c.r > 0.8 and c.g > 0.5 and c.b < 0.3, "home primary should be Penguins gold, got r=%f g=%f b=%f" % [c.r, c.g, c.b])
 
-func test_team_1_primary_is_white() -> void:
-	# Team 1 primary is always fixed white regardless of slot or jitter.
-	var c0: Color = PlayerRules.generate_primary_color(1, 0, 0.0)
-	var c1: Color = PlayerRules.generate_primary_color(1, 2, 1.0)
-	assert_eq(c0, Color(0.95, 0.95, 0.95), "team 1 primary should be fixed white")
-	assert_eq(c1, Color(0.95, 0.95, 0.95), "team 1 primary should be fixed white regardless of slot/jitter")
+func test_team_1_primary_is_blue() -> void:
+	var c: Color = PlayerRules.generate_primary_color(1)
+	assert_true(c.b > c.r and c.b > c.g, "away primary should be Leafs blue-dominant, got r=%f g=%f b=%f" % [c.r, c.g, c.b])
 
-func test_team_0_primary_zero_jitter_is_deterministic() -> void:
-	var a: Color = PlayerRules.generate_primary_color(0, 1, 0.0)
-	var b: Color = PlayerRules.generate_primary_color(0, 1, 0.0)
-	assert_eq(a, b, "same inputs should give same output with no jitter")
+func test_team_0_primary_is_deterministic() -> void:
+	assert_eq(PlayerRules.generate_primary_color(0), PlayerRules.generate_primary_color(0))
 
-func test_team_0_primary_different_slots_give_different_hues() -> void:
-	var c0: Color = PlayerRules.generate_primary_color(0, 0, 0.0)
-	var c1: Color = PlayerRules.generate_primary_color(0, 1, 0.0)
-	assert_ne(c0.h, c1.h, "different slots should have distinct hues")
-
-func test_team_0_primary_jitter_shifts_hue() -> void:
-	var center: Color = PlayerRules.generate_primary_color(0, 0, 0.0)
-	var jittered: Color = PlayerRules.generate_primary_color(0, 0, 1.0)
-	assert_ne(center.h, jittered.h, "jitter=1.0 should move hue off center")
+func test_team_1_primary_is_deterministic() -> void:
+	assert_eq(PlayerRules.generate_primary_color(1), PlayerRules.generate_primary_color(1))
 
 # ── generate_secondary_color ─────────────────────────────────────────────────
 
-func test_team_0_secondary_is_black() -> void:
-	# Team 0 secondary is always fixed near-black regardless of slot or jitter.
-	var c0: Color = PlayerRules.generate_secondary_color(0, 0, 0.0)
-	var c1: Color = PlayerRules.generate_secondary_color(0, 2, 1.0)
-	assert_eq(c0, Color(0.08, 0.08, 0.08), "team 0 secondary should be fixed near-black")
-	assert_eq(c1, Color(0.08, 0.08, 0.08), "team 0 secondary should be fixed near-black regardless of slot/jitter")
+func test_team_0_secondary_is_near_black() -> void:
+	var c: Color = PlayerRules.generate_secondary_color(0)
+	assert_true(c.r < 0.1 and c.g < 0.1 and c.b < 0.1, "home secondary should be Penguins black, got r=%f g=%f b=%f" % [c.r, c.g, c.b])
 
-func test_team_1_secondary_in_blue_range() -> void:
-	# Team 1 secondary hue 200-260° → normalized 0.556-0.722. Blue-dominant.
-	var c: Color = PlayerRules.generate_secondary_color(1, 0, 0.0)
-	assert_true(c.b > c.r, "blue should exceed red for cool color, got r=%f b=%f" % [c.r, c.b])
+func test_team_1_secondary_is_white() -> void:
+	var c: Color = PlayerRules.generate_secondary_color(1)
+	assert_true(c.r > 0.9 and c.g > 0.9 and c.b > 0.9, "away secondary should be Leafs white, got r=%f g=%f b=%f" % [c.r, c.g, c.b])
 
-func test_team_1_secondary_zero_jitter_is_deterministic() -> void:
-	var a: Color = PlayerRules.generate_secondary_color(1, 1, 0.0)
-	var b: Color = PlayerRules.generate_secondary_color(1, 1, 0.0)
-	assert_eq(a, b, "same inputs should give same output with no jitter")
+func test_team_0_secondary_is_deterministic() -> void:
+	assert_eq(PlayerRules.generate_secondary_color(0), PlayerRules.generate_secondary_color(0))
 
-func test_team_1_secondary_different_slots_give_different_hues() -> void:
-	var c0: Color = PlayerRules.generate_secondary_color(1, 0, 0.0)
-	var c1: Color = PlayerRules.generate_secondary_color(1, 1, 0.0)
-	assert_ne(c0.h, c1.h, "different slots should have distinct hues")
-
-func test_team_1_secondary_jitter_shifts_hue() -> void:
-	var center: Color = PlayerRules.generate_secondary_color(1, 0, 0.0)
-	var jittered: Color = PlayerRules.generate_secondary_color(1, 0, 1.0)
-	assert_ne(center.h, jittered.h, "jitter=1.0 should move hue off center")
+func test_team_1_secondary_is_deterministic() -> void:
+	assert_eq(PlayerRules.generate_secondary_color(1), PlayerRules.generate_secondary_color(1))
 
 # ── faceoff_position_for_slot ────────────────────────────────────────────────
 
 func test_faceoff_positions_even_slots_are_team_0_side() -> void:
-	# Even slots are team 0, on +Z side
 	assert_gt(PlayerRules.faceoff_position_for_slot(0).z, 0.0)
 	assert_gt(PlayerRules.faceoff_position_for_slot(2).z, 0.0)
 	assert_gt(PlayerRules.faceoff_position_for_slot(4).z, 0.0)

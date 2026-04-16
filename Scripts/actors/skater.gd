@@ -92,6 +92,7 @@ signal body_checked_player(victim: Skater, impact_force: float, hit_direction: V
 signal body_block_hit(body: Node3D)
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
+var _ring_mesh: MeshInstance3D = null
 var _facing: Vector2 = Vector2.DOWN
 var is_elevated: bool = false
 var is_ghost: bool = false
@@ -202,9 +203,40 @@ func _ready() -> void:
 	bottom_upper_arm_mesh = _resolve_or_create_bone_mesh("BottomUpperArmMesh")
 	bottom_forearm_mesh = _resolve_or_create_bone_mesh("BottomForearmMesh")
 
+	_ring_mesh = MeshInstance3D.new()
+	_ring_mesh.name = "RingIndicator"
+	_ring_mesh.mesh = _create_ring_mesh(0.34, 0.45, 32)
+	_ring_mesh.position = Vector3.ZERO
+	_ring_mesh.visible = false
+	add_child(_ring_mesh)
+
 	var vfx := SkaterVFX.new()
 	vfx.name = "VFX"
 	add_child(vfx)
+
+func _create_ring_mesh(inner_r: float, outer_r: float, segments: int) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+	for i: int in segments:
+		var a0: float = TAU * i / segments
+		var a1: float = TAU * (i + 1) / segments
+		var base: int = verts.size()
+		verts.append(Vector3(cos(a0) * inner_r, 0.0, sin(a0) * inner_r))
+		verts.append(Vector3(cos(a0) * outer_r, 0.0, sin(a0) * outer_r))
+		verts.append(Vector3(cos(a1) * inner_r, 0.0, sin(a1) * inner_r))
+		verts.append(Vector3(cos(a1) * outer_r, 0.0, sin(a1) * outer_r))
+		for _n: int in 4:
+			normals.append(Vector3.UP)
+		indices.append_array([base, base + 1, base + 2, base + 1, base + 3, base + 2])
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 func _resolve_or_create_bone_mesh(node_name: String) -> MeshInstance3D:
 	var existing: MeshInstance3D = upper_body.get_node_or_null(node_name) as MeshInstance3D
@@ -226,6 +258,8 @@ func _physics_process(delta: float) -> void:
 	var vel_before: Vector3 = velocity
 	move_and_slide()
 	_resolve_player_collisions(vel_before)
+	if _ring_mesh != null:
+		_ring_mesh.global_position.y = 0.05
 
 func _resolve_player_collisions(vel_before: Vector3) -> void:
 	for i: int in get_slide_collision_count():
@@ -261,7 +295,7 @@ func set_lower_body_lag(angle: float) -> void:
 func get_facing() -> Vector2:
 	return _facing
 
-func set_player_color(primary_color: Color, secondary_color: Color) -> void:
+func set_player_color(primary_color: Color, secondary_color: Color, is_local: bool = false) -> void:
 	# Primary: jersey, blade, arms
 	var primary_mat := StandardMaterial3D.new()
 	primary_mat.albedo_color = primary_color
@@ -285,6 +319,14 @@ func set_player_color(primary_color: Color, secondary_color: Color) -> void:
 	var stick_mat := StandardMaterial3D.new()
 	stick_mat.albedo_color = Color(0.705, 0.640, 0.605)
 	stick_mesh.material_override = stick_mat
+	if _ring_mesh != null:
+		_ring_mesh.visible = is_local
+	# Ring indicator — primary color with subtle emission so it reads on the ice
+	if _ring_mesh != null and is_local:
+		var ring_mat := StandardMaterial3D.new()
+		ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ring_mat.albedo_color = Color(0.5, 0.5, 0.5, 0.5)
+		_ring_mesh.material_override = ring_mat
 
 # ── Blade ─────────────────────────────────────────────────────────────────────
 func set_blade_position(pos: Vector3) -> void:

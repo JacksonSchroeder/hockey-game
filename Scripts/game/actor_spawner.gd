@@ -80,7 +80,7 @@ func spawn_local_player(
 	skater.is_left_handed = is_left_handed  # must be set before add_child so _ready sees it
 	skater.position = position
 	_scene_root.add_child(skater)
-	skater.set_player_color(primary_color, secondary_color)
+	skater.set_player_color(primary_color, secondary_color, true)
 	var controller: LocalController = LOCAL_CONTROLLER_SCENE.instantiate()
 	_scene_root.add_child(controller)
 	controller.setup(skater, puck, game_state)

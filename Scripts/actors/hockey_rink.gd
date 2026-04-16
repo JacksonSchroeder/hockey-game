@@ -51,7 +51,7 @@ extends StaticBody3D
 		_rebuild()
 
 # Texture resolution: pixels per meter
-var _px_per_meter: float = 20.0
+var _px_per_meter: float = 40.0
 
 func _ready() -> void:
 	_rebuild()
@@ -182,6 +182,9 @@ func _add_ice(half_l: float) -> void:
 	var mat = StandardMaterial3D.new()
 	mat.albedo_texture = tex
 	mat.albedo_color = Color.WHITE
+	mat.roughness = 0.08
+	mat.specular = 0.9
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	mesh_instance.material_override = mat
 	add_child(mesh_instance)
 	
@@ -207,23 +210,30 @@ func _draw_h_line(img: Image, y: int, thickness: int, color: Color) -> void:
 			for px in range(img.get_width()):
 				img.set_pixel(px, py, color)
 
-func _draw_circle(img: Image, cx: int, cy: int, radius: int, thickness: int, color: Color) -> void:
-	var r_outer = radius + thickness / 2.0
-	var r_inner = radius - thickness / 2.0
-	for py in range(cy - r_outer - 1, cy + r_outer + 2):
-		for px in range(cx - r_outer - 1, cx + r_outer + 2):
+func _draw_circle(img: Image, cx: float, cy: float, radius: float, thickness: float, color: Color) -> void:
+	var aa: float = 1.0
+	var r_outer := radius + thickness / 2.0
+	var r_inner := radius - thickness / 2.0
+	for py in range(int(cy - r_outer - aa - 1), int(cy + r_outer + aa + 2)):
+		for px in range(int(cx - r_outer - aa - 1), int(cx + r_outer + aa + 2)):
 			if px >= 0 and px < img.get_width() and py >= 0 and py < img.get_height():
-				var dist = sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy))
-				if dist >= r_inner and dist <= r_outer:
-					img.set_pixel(px, py, color)
+				var dist := sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy))
+				var alpha := minf(
+					clampf((dist - (r_inner - aa)) / aa, 0.0, 1.0),
+					clampf(((r_outer + aa) - dist) / aa, 0.0, 1.0)
+				)
+				if alpha > 0.0:
+					img.set_pixel(px, py, img.get_pixel(px, py).lerp(color, alpha))
 
-func _draw_filled_circle(img: Image, cx: int, cy: int, radius: int, color: Color) -> void:
-	for py in range(cy - radius, cy + radius + 1):
-		for px in range(cx - radius, cx + radius + 1):
+func _draw_filled_circle(img: Image, cx: float, cy: float, radius: float, color: Color) -> void:
+	var aa: float = 1.0
+	for py in range(int(cy - radius - aa - 1), int(cy + radius + aa + 2)):
+		for px in range(int(cx - radius - aa - 1), int(cx + radius + aa + 2)):
 			if px >= 0 and px < img.get_width() and py >= 0 and py < img.get_height():
-				var dist = sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy))
-				if dist <= radius:
-					img.set_pixel(px, py, color)
+				var dist := sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy))
+				var alpha := clampf((radius + aa - dist) / aa, 0.0, 1.0)
+				if alpha > 0.0:
+					img.set_pixel(px, py, img.get_pixel(px, py).lerp(color, alpha))
 
 func _draw_crease_fill(img: Image, cx: float, goal_y: float, toward_center: int, color: Color) -> void:
 	# NHL crease: D-shape — arc radius 6 ft (1.83m) from goal center, capped at 4 ft (1.22m)

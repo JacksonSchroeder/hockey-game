@@ -1,27 +1,32 @@
 class_name HUD
 extends CanvasLayer
 
-@export var score_font_size: int = 32
-@export var phase_font_size: int = 20
-@export var panel_position: Vector2 = Vector2(16.0, 16.0)
-@export var bg_color: Color = Color(0.0, 0.0, 0.0, 0.65)
-
-var _score_label: Label
-var _phase_label: Label
 var _period_label: Label
 var _clock_label: Label
+var _home_score_label: Label
+var _away_score_label: Label
+var _phase_panel: PanelContainer
+var _phase_label: Label
 var _elevation_panel: PanelContainer
 var _local_skater: Skater = null
 
+const _DARK_BG    := Color(0.07, 0.07, 0.09, 0.92)
+const _WHITE      := Color(1.00, 1.00, 1.00, 1.00)
+const _DIM        := Color(0.62, 0.62, 0.68, 1.00)
+const _GOLD       := Color(1.00, 0.85, 0.20, 1.00)
+const _SEP_COLOR  := Color(0.28, 0.28, 0.33, 1.00)
+
 func _ready() -> void:
 	_build_scorebug()
+	_build_phase_banner()
 	_build_elevation_indicator()
 	if NetworkManager.is_host:
 		_build_reset_button()
-	_score_label.text = "0 \u2013 0"
-	_phase_label.visible = false
-	_period_label.text = "PERIOD 1"
+	_period_label.text = _period_ordinal(1)
 	_clock_label.text = _format_clock(GameRules.PERIOD_DURATION)
+	_home_score_label.text = "0"
+	_away_score_label.text = "0"
+	_phase_panel.visible = false
 	GameManager.score_changed.connect(_on_score_changed)
 	GameManager.phase_changed.connect(_on_phase_changed)
 	GameManager.period_changed.connect(_on_period_changed)
@@ -36,51 +41,108 @@ func _process(_delta: float) -> void:
 	if _local_skater != null:
 		_elevation_panel.visible = _local_skater.is_elevated
 
+# ---------------------------------------------------------------------------
+# Build helpers
+# ---------------------------------------------------------------------------
+
 func _build_scorebug() -> void:
-	var style := StyleBoxFlat.new()
-	style.bg_color = bg_color
-	style.set_corner_radius_all(6)
-	style.set_content_margin_all(10)
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = _DARK_BG
+	panel_style.set_corner_radius_all(3)
 
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", style)
-	panel.position = panel_position
+	panel.add_theme_stylebox_override("panel", panel_style)
+	panel.position = Vector2(8, 8)
 	add_child(panel)
 
-	var vbox := VBoxContainer.new()
-	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	panel.add_child(vbox)
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 0)
+	panel.add_child(hbox)
 
-	_score_label = Label.new()
-	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_score_label.add_theme_font_size_override("font_size", score_font_size)
-	_score_label.add_theme_color_override("font_color", Color.WHITE)
-	_score_label.add_theme_color_override("font_shadow_color", Color.BLACK)
-	_score_label.add_theme_constant_override("shadow_offset_x", 1)
-	_score_label.add_theme_constant_override("shadow_offset_y", 1)
-	vbox.add_child(_score_label)
+	# Left column: period ordinal stacked above clock
+	var left_cell := _cell(14, 8)
+	hbox.add_child(left_cell)
+	var left_vbox := VBoxContainer.new()
+	left_vbox.add_theme_constant_override("separation", 2)
+	left_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	left_cell.add_child(left_vbox)
 
-	_phase_label = Label.new()
-	_phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_phase_label.add_theme_font_size_override("font_size", phase_font_size)
-	_phase_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2, 1.0))
-	vbox.add_child(_phase_label)
-
-	_period_label = Label.new()
+	_period_label = _lbl("1ST", 12, _DIM)
 	_period_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_period_label.add_theme_font_size_override("font_size", phase_font_size)
-	_period_label.add_theme_color_override("font_color", Color.WHITE)
-	vbox.add_child(_period_label)
+	left_vbox.add_child(_period_label)
 
-	_clock_label = Label.new()
+	_clock_label = _lbl("4:00", 24, _WHITE)
 	_clock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_clock_label.add_theme_font_size_override("font_size", score_font_size)
-	_clock_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9, 1.0))
-	vbox.add_child(_clock_label)
+	_clock_label.custom_minimum_size = Vector2(62, 0)
+	left_vbox.add_child(_clock_label)
+
+	hbox.add_child(_vsep())
+
+	# Right column: home stacked above away
+	var right_cell := _cell(12, 6)
+	hbox.add_child(right_cell)
+	var right_vbox := VBoxContainer.new()
+	right_vbox.add_theme_constant_override("separation", 5)
+	right_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_cell.add_child(right_vbox)
+
+	var home_row := HBoxContainer.new()
+	home_row.add_theme_constant_override("separation", 8)
+	right_vbox.add_child(home_row)
+	var home_name := _lbl("HOME", 12, PlayerRules.generate_primary_color(0))
+	home_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	home_row.add_child(home_name)
+	_home_score_label = _lbl("0", 20, _WHITE)
+	_home_score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_home_score_label.custom_minimum_size = Vector2(16, 0)
+	home_row.add_child(_home_score_label)
+
+	var away_row := HBoxContainer.new()
+	away_row.add_theme_constant_override("separation", 8)
+	right_vbox.add_child(away_row)
+	var away_name := _lbl("AWAY", 12, PlayerRules.generate_primary_color(1))
+	away_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	away_row.add_child(away_name)
+	_away_score_label = _lbl("0", 20, _WHITE)
+	_away_score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_away_score_label.custom_minimum_size = Vector2(16, 0)
+	away_row.add_child(_away_score_label)
+
+func _build_phase_banner() -> void:
+	# Centered below the scorebug
+	var root := Control.new()
+	root.anchor_right = 1.0
+	root.offset_top = 62.0
+	root.offset_bottom = 112.0
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(root)
+
+	var centering := HBoxContainer.new()
+	centering.alignment = BoxContainer.ALIGNMENT_CENTER
+	centering.anchor_right = 1.0
+	centering.offset_bottom = 50.0
+	centering.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(centering)
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.07, 0.07, 0.09, 0.88)
+	style.set_corner_radius_all(3)
+	style.set_content_margin(SIDE_LEFT, 20)
+	style.set_content_margin(SIDE_RIGHT, 20)
+	style.set_content_margin(SIDE_TOP, 8)
+	style.set_content_margin(SIDE_BOTTOM, 8)
+
+	_phase_panel = PanelContainer.new()
+	_phase_panel.add_theme_stylebox_override("panel", style)
+	centering.add_child(_phase_panel)
+
+	_phase_label = _lbl("", 18, _GOLD)
+	_phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_phase_panel.add_child(_phase_label)
 
 func _build_elevation_indicator() -> void:
 	var style := StyleBoxFlat.new()
-	style.bg_color = bg_color
+	style.bg_color = _DARK_BG
 	style.set_corner_radius_all(6)
 	style.set_content_margin_all(8)
 
@@ -97,11 +159,8 @@ func _build_elevation_indicator() -> void:
 	_elevation_panel.visible = false
 	add_child(_elevation_panel)
 
-	var label := Label.new()
-	label.text = "\u2191 ELEVATED"
+	var label := _lbl("\u2191 ELEVATED", 16, Color(0.4, 0.8, 1.0, 1.0))
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 16)
-	label.add_theme_color_override("font_color", Color(0.4, 0.8, 1.0, 1.0))
 	_elevation_panel.add_child(label)
 
 func _build_reset_button() -> void:
@@ -119,36 +178,75 @@ func _build_reset_button() -> void:
 	btn.pressed.connect(GameManager.reset_game)
 	add_child(btn)
 
+# ---------------------------------------------------------------------------
+# Signal handlers
+# ---------------------------------------------------------------------------
+
 func _on_score_changed(score_0: int, score_1: int) -> void:
-	_score_label.text = "%d \u2013 %d" % [score_0, score_1]
+	_home_score_label.text = str(score_0)
+	_away_score_label.text = str(score_1)
 
 func _on_phase_changed(new_phase: int) -> void:
 	match new_phase:
 		GamePhase.Phase.PLAYING:
-			_phase_label.visible = false
-			_phase_label.text = ""
+			_phase_panel.visible = false
 		GamePhase.Phase.GOAL_SCORED:
 			_phase_label.text = "GOAL!"
-			_phase_label.visible = true
+			_phase_panel.visible = true
 		GamePhase.Phase.END_OF_PERIOD:
 			_phase_label.text = "END OF PERIOD"
-			_phase_label.visible = true
+			_phase_panel.visible = true
 		GamePhase.Phase.GAME_OVER:
 			_phase_label.text = "GAME OVER"
-			_phase_label.visible = true
+			_phase_panel.visible = true
 		_:
 			_phase_label.text = "FACEOFF"
-			_phase_label.visible = true
+			_phase_panel.visible = true
 
 func _on_period_changed(new_period: int) -> void:
-	_period_label.text = "PERIOD %d" % new_period
+	_period_label.text = _period_ordinal(new_period)
 
 func _on_clock_updated(t: float) -> void:
 	_clock_label.text = _format_clock(t)
 
 func _on_game_over() -> void:
 	_phase_label.text = "GAME OVER"
-	_phase_label.visible = true
+	_phase_panel.visible = true
+
+# ---------------------------------------------------------------------------
+# Utility
+# ---------------------------------------------------------------------------
+
+func _cell(h_margin: int, v_margin: int) -> MarginContainer:
+	var c := MarginContainer.new()
+	c.add_theme_constant_override("margin_left", h_margin)
+	c.add_theme_constant_override("margin_right", h_margin)
+	c.add_theme_constant_override("margin_top", v_margin)
+	c.add_theme_constant_override("margin_bottom", v_margin)
+	return c
+
+func _vsep() -> VSeparator:
+	var sep := VSeparator.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = _SEP_COLOR
+	style.set_content_margin_all(0)
+	sep.add_theme_stylebox_override("separator", style)
+	sep.custom_minimum_size = Vector2(1, 0)
+	return sep
+
+func _lbl(text: String, size: int, color: Color) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	return l
+
+func _period_ordinal(p: int) -> String:
+	match p:
+		1: return "1ST"
+		2: return "2ND"
+		3: return "3RD"
+		_: return "OT"
 
 func _format_clock(t: float) -> String:
 	var secs: int = int(ceil(t))

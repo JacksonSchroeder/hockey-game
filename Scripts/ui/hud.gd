@@ -60,7 +60,7 @@ func _build_scorebug() -> void:
 	panel.add_child(hbox)
 
 	# Left column: period ordinal stacked above clock
-	var left_cell := _cell(14, 8)
+	var left_cell := _cell(6, 8)
 	hbox.add_child(left_cell)
 	var left_vbox := VBoxContainer.new()
 	left_vbox.add_theme_constant_override("separation", 2)
@@ -78,35 +78,30 @@ func _build_scorebug() -> void:
 
 	hbox.add_child(_vsep())
 
-	# Right column: home stacked above away
-	var right_cell := _cell(12, 6)
+	# Right column: GridContainer so badge column and score column share alignment.
+	var right_cell := _cell(4, 6)
 	hbox.add_child(right_cell)
-	var right_vbox := VBoxContainer.new()
-	right_vbox.add_theme_constant_override("separation", 5)
-	right_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	right_cell.add_child(right_vbox)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 4)
+	right_cell.add_child(grid)
 
-	var home_row := HBoxContainer.new()
-	home_row.add_theme_constant_override("separation", 8)
-	right_vbox.add_child(home_row)
-	var home_name := _lbl("HOME", 12, PlayerRules.generate_primary_color(0))
-	home_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	home_row.add_child(home_name)
+	grid.add_child(_team_badge("HOME", PlayerRules.generate_primary_color(0)))
 	_home_score_label = _lbl("0", 20, _WHITE)
+	_home_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_home_score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_home_score_label.custom_minimum_size = Vector2(16, 0)
-	home_row.add_child(_home_score_label)
+	_home_score_label.custom_minimum_size = Vector2(20, 0)
+	_home_score_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(_home_score_label)
 
-	var away_row := HBoxContainer.new()
-	away_row.add_theme_constant_override("separation", 8)
-	right_vbox.add_child(away_row)
-	var away_name := _lbl("AWAY", 12, PlayerRules.generate_primary_color(1))
-	away_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	away_row.add_child(away_name)
+	grid.add_child(_team_badge("AWAY", PlayerRules.generate_primary_color(1)))
 	_away_score_label = _lbl("0", 20, _WHITE)
+	_away_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_away_score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_away_score_label.custom_minimum_size = Vector2(16, 0)
-	away_row.add_child(_away_score_label)
+	_away_score_label.custom_minimum_size = Vector2(20, 0)
+	_away_score_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(_away_score_label)
 
 func _build_phase_banner() -> void:
 	# Centered below the scorebug
@@ -224,6 +219,23 @@ func _cell(h_margin: int, v_margin: int) -> MarginContainer:
 	c.add_theme_constant_override("margin_top", v_margin)
 	c.add_theme_constant_override("margin_bottom", v_margin)
 	return c
+
+func _team_badge(text: String, bg_color: Color) -> PanelContainer:
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.set_corner_radius_all(3)
+	style.set_content_margin(SIDE_LEFT, 6)
+	style.set_content_margin(SIDE_RIGHT, 6)
+	style.set_content_margin(SIDE_TOP, 3)
+	style.set_content_margin(SIDE_BOTTOM, 3)
+	var badge := PanelContainer.new()
+	badge.add_theme_stylebox_override("panel", style)
+	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# Pick text color by background luminance: dark text on light fills, white on dark.
+	var lum: float = 0.299 * bg_color.r + 0.587 * bg_color.g + 0.114 * bg_color.b
+	var text_color: Color = Color(0.06, 0.06, 0.06) if lum > 0.4 else _WHITE
+	badge.add_child(_lbl(text, 11, text_color))
+	return badge
 
 func _vsep() -> VSeparator:
 	var sep := VSeparator.new()

@@ -14,7 +14,7 @@ extends StaticBody3D
 	set(v):
 		corner_radius = v
 		_rebuild()
-@export var wall_height: float = 1.0:
+@export var wall_height: float = 1.07:
 	set(v):
 		wall_height = v
 		_rebuild()
@@ -22,27 +22,35 @@ extends StaticBody3D
 	set(v):
 		wall_thickness = v
 		_rebuild()
-@export var corner_segments: int = 8:
+@export var corner_segments: int = 14:
 	set(v):
 		corner_segments = v
 		_rebuild()
-@export var wall_color: Color = Color(0.2, 0.2, 0.8):
+@export var wall_color: Color = Color(0.95, 0.95, 0.95):
 	set(v):
 		wall_color = v
+		_rebuild()
+@export var glass_height: float = 1.1:
+	set(v):
+		glass_height = v
+		_rebuild()
+@export var glass_color: Color = Color(0.85, 0.93, 1.0, 0.12):
+	set(v):
+		glass_color = v
 		_rebuild()
 @export var ice_color: Color = Color(0.9, 0.95, 1.0):
 	set(v):
 		ice_color = v
 		_rebuild()
-@export var red_line_color: Color = Color(0.8, 0.1, 0.1):
+@export var red_line_color: Color = Color(0.72, 0.18, 0.18):
 	set(v):
 		red_line_color = v
 		_rebuild()
-@export var blue_line_color: Color = Color(0.1, 0.1, 0.8):
+@export var blue_line_color: Color = Color(0.18, 0.18, 0.68):
 	set(v):
 		blue_line_color = v
 		_rebuild()
-@export var ice_friction: float = 0.05:
+@export var ice_friction: float = 0.01:
 	set(v):
 		ice_friction = v
 		_rebuild()
@@ -278,56 +286,88 @@ func _draw_crease_arc(img: Image, cx: float, goal_y: float, toward_center: int, 
 			if dy <= straight_depth and abs(abs(dx) - half_w) <= half_t:
 				img.set_pixel(px, py, color)
 
+func _make_glass_material() -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = glass_color
+	mat.roughness = 0.05
+	mat.metallic = 0.0
+	mat.specular = 1.0
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return mat
+
 func _add_wall(pos: Vector3, size: Vector3) -> void:
-	var mesh_instance = MeshInstance3D.new()
-	var box = BoxMesh.new()
-	box.size = size
-	mesh_instance.mesh = box
-	mesh_instance.position = pos
-	var mat = StandardMaterial3D.new()
-	mat.albedo_color = wall_color
-	mesh_instance.material_override = mat
-	add_child(mesh_instance)
-	
-	var col = CollisionShape3D.new()
-	var shape = BoxShape3D.new()
-	shape.size = size
+	# Board mesh (opaque, pos.y is already the board center)
+	var board_mi := MeshInstance3D.new()
+	var board_box := BoxMesh.new()
+	board_box.size = size
+	board_mi.mesh = board_box
+	board_mi.position = pos
+	var board_mat := StandardMaterial3D.new()
+	board_mat.albedo_color = wall_color
+	board_mi.material_override = board_mat
+	add_child(board_mi)
+
+	# Glass mesh sitting directly on top of the boards
+	var glass_mi := MeshInstance3D.new()
+	var glass_box := BoxMesh.new()
+	glass_box.size = Vector3(size.x, glass_height, size.z)
+	glass_mi.mesh = glass_box
+	glass_mi.position = Vector3(pos.x, pos.y + (size.y + glass_height) / 2.0, pos.z)
+	glass_mi.material_override = _make_glass_material()
+	add_child(glass_mi)
+
+	# Single collision covering the full board + glass height
+	var total_height := size.y + glass_height
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(size.x, total_height, size.z)
 	col.shape = shape
-	col.position = pos
+	col.position = Vector3(pos.x, total_height / 2.0, pos.z)
 	add_child(col)
 
 func _add_corner(center: Vector3, angle_start: float, angle_end: float) -> void:
-	var angle_step = (angle_end - angle_start) / corner_segments
+	var angle_step := (angle_end - angle_start) / corner_segments
 	for i in corner_segments:
-		var a1 = angle_start + i * angle_step
-		var a2 = angle_start + (i + 1) * angle_step
-		
-		var p1 = center + Vector3(cos(a1) * corner_radius, 0, sin(a1) * corner_radius)
-		var p2 = center + Vector3(cos(a2) * corner_radius, 0, sin(a2) * corner_radius)
-		
-		var mid = (p1 + p2) / 2.0
-		mid.y = wall_height / 2.0
-		
-		var seg_length = p1.distance_to(p2)
-		
-		var dir = (p2 - p1).normalized()
-		var rot_y = atan2(dir.x, dir.z)
-		
-		var mesh_instance = MeshInstance3D.new()
-		var box = BoxMesh.new()
-		box.size = Vector3(wall_thickness, wall_height, seg_length)
-		mesh_instance.mesh = box
-		mesh_instance.position = mid
-		mesh_instance.rotation.y = rot_y
-		var mat = StandardMaterial3D.new()
-		mat.albedo_color = wall_color
-		mesh_instance.material_override = mat
-		add_child(mesh_instance)
-		
-		var col = CollisionShape3D.new()
-		var shape = BoxShape3D.new()
-		shape.size = Vector3(wall_thickness, wall_height, seg_length)
+		var a1 := angle_start + i * angle_step
+		var a2 := angle_start + (i + 1) * angle_step
+
+		var p1 := center + Vector3(cos(a1) * corner_radius, 0, sin(a1) * corner_radius)
+		var p2 := center + Vector3(cos(a2) * corner_radius, 0, sin(a2) * corner_radius)
+
+		var mid_xz := (p1 + p2) / 2.0
+		var seg_length := p1.distance_to(p2)
+		var dir := (p2 - p1).normalized()
+		var rot_y := atan2(dir.x, dir.z)
+
+		# Board mesh
+		var board_mi := MeshInstance3D.new()
+		var board_box := BoxMesh.new()
+		board_box.size = Vector3(wall_thickness, wall_height, seg_length)
+		board_mi.mesh = board_box
+		board_mi.position = Vector3(mid_xz.x, wall_height / 2.0, mid_xz.z)
+		board_mi.rotation.y = rot_y
+		var board_mat := StandardMaterial3D.new()
+		board_mat.albedo_color = wall_color
+		board_mi.material_override = board_mat
+		add_child(board_mi)
+
+		# Glass mesh on top of boards
+		var glass_mi := MeshInstance3D.new()
+		var glass_box := BoxMesh.new()
+		glass_box.size = Vector3(wall_thickness, glass_height, seg_length)
+		glass_mi.mesh = glass_box
+		glass_mi.position = Vector3(mid_xz.x, wall_height + glass_height / 2.0, mid_xz.z)
+		glass_mi.rotation.y = rot_y
+		glass_mi.material_override = _make_glass_material()
+		add_child(glass_mi)
+
+		# Full-height collision
+		var total_height := wall_height + glass_height
+		var col := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(wall_thickness, total_height, seg_length)
 		col.shape = shape
-		col.position = mid
+		col.position = Vector3(mid_xz.x, total_height / 2.0, mid_xz.z)
 		col.rotation.y = rot_y
 		add_child(col)

@@ -35,7 +35,7 @@ enum State {
 # fixed world height regardless of where the upper body anchor is placed in the
 # scene. This also means crouching (block stance) doesn't pull the blade
 # through the ice — the local Y compensates automatically.
-@export var blade_height: float = 0.0
+@export var blade_height: float = 0.03
 # Fixed, rigid shaft length (hand to blade heel). Baseline 1.30 m ≈ adult
 # senior stick shaft (butt-to-heel). The blade mesh extends forward from the
 # heel; see Skater.blade_length. Total hand-to-toe is stick_length + blade_length.
@@ -85,7 +85,7 @@ enum State {
 @export var bh_release_angle_band_deg: float = 15.0
 
 # ── Upper Body Tuning ─────────────────────────────────────────────────────────
-@export var upper_body_twist_ratio: float = 1.0
+@export var upper_body_twist_ratio: float = 0.8
 @export var upper_body_max_twist_deg: float = 67.0   # caps rotation so extreme angles don't over-rotate
 @export var upper_body_return_speed: float = 6.0
 @export var upper_body_lean_max_deg: float = 8.0
@@ -515,6 +515,12 @@ func _enter_slapper_charge(input: InputState) -> void:
 		input.mouse_world_pos.x - skater.global_position.x,
 		input.mouse_world_pos.z - skater.global_position.z)
 	_locked_slapper_dir = to_mouse.normalized() if to_mouse.length() > move_deadzone else _facing
+	# Snap facing to the locked shot direction so the body, blade wind-up, and
+	# shot direction all align immediately at entry. Without this, the blade
+	# winds up on the skater's local side (which may be perpendicular to the aim)
+	# and the visual swing direction doesn't match where the shot goes.
+	_facing = _locked_slapper_dir
+	skater.set_facing(_facing)
 	_upper_body_angle = 0.0
 	_upper_body_lean = 0.0
 	_velocity_lean_x = 0.0
@@ -625,6 +631,9 @@ func _apply_blade_from_mouse(input: InputState, delta: float) -> void:
 			_ik_config())
 	var hand_local: Vector3 = ik.hand
 	var blade_local: Vector3 = ik.blade
+	# Apply pitch correction to blade Y after IK so the IK geometry (hand-to-blade
+	# vertical drop) stays consistent, but the blade's world Y stays at blade_height.
+	blade_local.y = _blade_y_pitch_corrected(blade_local.z)
 
 	# Wall clamp on the solved blade. Wall-pin auto-release (when carrying).
 	var intended_blade: Vector3 = blade_local
@@ -666,7 +675,7 @@ func _apply_blade_from_relative_angle() -> void:
 	var hand_pos := skater.shoulder.position
 	hand_pos.y = hand_rest_y
 	var intended_target: Vector3 = hand_pos + local_dir * stick_horiz
-	intended_target.y = _blade_y_local()
+	intended_target.y = _blade_y_pitch_corrected(intended_target.z)
 	var local_target: Vector3 = skater.clamp_blade_to_walls(intended_target)
 	# Same wall-clamp hand retraction as _apply_blade_from_mouse so follow-
 	# through keeps stick length constant when pinned.
@@ -719,7 +728,7 @@ func _apply_upper_body(delta: float) -> void:
 			var blade_angle: float = atan2(local_dir.x, -local_dir.z)
 			var max_twist: float = deg_to_rad(upper_body_max_twist_deg)
 			target_angle = clampf(-blade_angle * upper_body_twist_ratio, -max_twist, max_twist)
-		target_lean = reach_factor * deg_to_rad(upper_body_lean_max_deg)
+			target_lean = -reach_factor * deg_to_rad(upper_body_lean_max_deg)
 
 	_upper_body_angle = lerp_angle(_upper_body_angle, target_angle, upper_body_return_speed * delta)
 	_upper_body_lean = lerpf(_upper_body_lean, target_lean, upper_body_lean_return_speed * delta)
@@ -830,6 +839,18 @@ func _slapper_config() -> Dictionary:
 func _blade_y_local() -> float:
 	return blade_height - skater.upper_body.global_position.y
 
+# Pitch-corrected blade Y for a given blade local Z. Used AFTER IK so the
+# IK geometry stays internally consistent (correct hand-to-blade vertical drop),
+# while the blade's final world Y is kept at blade_height despite upper-body pitch.
+# When upper_body.rotation.x = pitch, a point at local Z offset z shifts world Y
+# by -z * sin(pitch). Adding z * sin(pitch) to the local Y target cancels that out.
+func _blade_y_pitch_corrected(blade_local_z: float) -> float:
+	var base: float = _blade_y_local()
+	var pitch: float = skater.upper_body.rotation.x
+	if abs(pitch) > 0.001:
+		base += blade_local_z * sin(pitch)
+	return base
+
 func _ik_config() -> Dictionary:
 	return {
 		"stick_length": stick_length,
@@ -874,10 +895,15 @@ func _update_bottom_hand() -> void:
 	var grip_target_xz := Vector2(
 			lerpf(hand_local.x, blade_local.x, bottom_hand_grip_fraction),
 			lerpf(hand_local.z, blade_local.z, bottom_hand_grip_fraction))
+	# Derive grip Y from the stick shaft so the hand stays on the stick regardless
+	# of pitch lean or reach. bh_hand_y offsets for fine-tuning.
+	var grip_y: float = lerpf(hand_local.y, blade_local.y, bottom_hand_grip_fraction) + bh_hand_y
+	var cfg: Dictionary = _bottom_hand_ik_config()
+	cfg.hand_y = grip_y
 	var bh: Vector3 = BottomHandIK.solve(
 			skater.bottom_shoulder.position,
 			grip_target_xz,
-			_bottom_hand_ik_config())
+			cfg)
 	skater.set_bottom_hand_position(bh)
 
 # Horizontal projection of the stick onto the XZ plane, given the fixed

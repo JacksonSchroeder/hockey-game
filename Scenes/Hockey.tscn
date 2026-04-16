@@ -26,13 +26,6 @@ environment = SubResource("Environment_rxg2q")
 [node name="Rink" type="StaticBody3D" parent="." unique_id=2100473277]
 physics_material_override = ExtResource("2_tdlsr")
 script = ExtResource("3_7grwi")
-wall_height = 2.0
-corner_segments = 14
-wall_color = Color(0.93408, 0.93408, 0.93408, 1)
-ice_color = Color(1, 1, 1, 1)
-red_line_color = Color(1, 0.425788, 0.357085, 1)
-blue_line_color = Color(0.502817, 0.663302, 1, 1)
-ice_friction = 0.01
 
 [node name="GoalBottom" type="StaticBody3D" parent="." unique_id=1648202477]
 script = ExtResource("4_2i1fh")

@@ -269,7 +269,7 @@ func reset() -> void:
 	global_position = Vector3(0, ice_height, 0)
 	puck_released.emit()
 
-func _is_airborne() -> bool:
+func is_airborne() -> bool:
 	return position.y > ice_height + 0.05
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
@@ -294,7 +294,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		if linear_velocity.length() > max_speed:
 			linear_velocity = linear_velocity.normalized() * max_speed
-		if _is_airborne():
+		if is_airborne():
 			pass
 		else:
 			linear_velocity.y = 0.0

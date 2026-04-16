@@ -21,6 +21,8 @@ enum State {
 @export var puck_carry_speed_multiplier: float = 0.92
 @export var backward_thrust_multiplier: float = 0.80
 @export var crossover_thrust_multiplier: float = 0.90
+@export var dash_impulse_magnitude: float = 3.5
+@export var dash_cooldown: float = 0.6
 
 # ── Facing Tuning ─────────────────────────────────────────────────────────────
 # How fast facing drifts toward the cursor during normal play. Lower = more
@@ -165,6 +167,7 @@ var _charge_distance: float = 0.0
 var _prev_blade_pos: Vector3 = Vector3.ZERO
 var _prev_blade_dir: Vector3 = Vector3.ZERO
 var _slapper_charge_timer: float = 0.0
+var _dash_cooldown_timer: float = 0.0
 var last_processed_sequence: int = 0
 var has_puck: bool = false
 
@@ -787,16 +790,37 @@ func _apply_velocity_lean(delta: float) -> void:
 
 # ── Movement ──────────────────────────────────────────────────────────────────
 func _apply_movement(input: InputState, delta: float) -> void:
+	# Tick cooldown before state guard so it drains even during shot states.
+	if _dash_cooldown_timer > 0.0:
+		_dash_cooldown_timer -= delta
+
+	# Pure brake (no direction) — drives hockey stop VFX on the skater.
+	skater.is_braking = input.brake and input.move_vector.length() <= move_deadzone
+
 	if _state in [State.SLAPPER_CHARGE_WITH_PUCK, State.SHOT_BLOCKING]:
 		return
-	skater.velocity = SkaterMovementRules.apply_movement(
-			skater.velocity,
-			input.move_vector,
-			skater.rotation.y,
-			has_puck,
-			input.brake,
-			delta,
-			_movement_config())
+
+	var cfg: Dictionary = _movement_config()
+	var wants_dash: bool = (
+		input.brake
+		and input.move_vector.length() > move_deadzone
+		and _dash_cooldown_timer <= 0.0
+	)
+
+	if wants_dash:
+		_dash_cooldown_timer = dash_cooldown
+		var dash_dir := Vector3(input.move_vector.x, 0.0, input.move_vector.y)
+		skater.velocity = SkaterMovementRules.apply_dash_impulse(
+				skater.velocity, dash_dir, has_puck, cfg)
+		skater.pulse_dashed.emit(dash_dir.normalized())
+		# Impulse served the brake input; apply normal friction this tick (not brake friction).
+		skater.velocity = SkaterMovementRules.apply_movement(
+				skater.velocity, input.move_vector, skater.rotation.y,
+				has_puck, false, delta, cfg)
+	else:
+		skater.velocity = SkaterMovementRules.apply_movement(
+				skater.velocity, input.move_vector, skater.rotation.y,
+				has_puck, input.brake, delta, cfg)
 
 func _movement_config() -> Dictionary:
 	return {
@@ -808,6 +832,7 @@ func _movement_config() -> Dictionary:
 		"puck_carry_speed_multiplier": puck_carry_speed_multiplier,
 		"backward_thrust_multiplier": backward_thrust_multiplier,
 		"crossover_thrust_multiplier": crossover_thrust_multiplier,
+		"dash_impulse_magnitude": dash_impulse_magnitude,
 	}
 
 func _block_movement_config() -> Dictionary:

@@ -66,7 +66,7 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 | `domain/rules/player_rules.gd` | Team balancing, fixed team colors (`generate_primary_color` / `generate_secondary_color`), faceoff position lookup. Home team (0): Penguins Vegas Gold primary + black secondary. Away team (1): Leafs Blue primary + white secondary. |
 | `domain/rules/infraction_rules.gd` | `is_offside`, `check_icing` |
 | `domain/rules/puck_collision_rules.gd` | Deflection reflection, body-check/body-block velocity, poke-strip direction, `can_poke_check` eligibility |
-| `domain/rules/skater_movement_rules.gd` | Thrust scaling, friction, max-speed clamp with puck-carry penalty |
+| `domain/rules/skater_movement_rules.gd` | Thrust scaling, friction, max-speed clamp with puck-carry penalty, pulse-dash impulse |
 | `domain/rules/shot_mechanics.gd` | Wrister / slapper power + direction + elevation; `should_release_on_wall_pin` |
 | `domain/rules/goalie_behavior_rules.gd` | Shot detection, defensive zone detection, Buckley depth chart, lateral X target |
 | `domain/rules/charge_tracking.gd` | Wrister aim charge accumulation with direction-variance reset |

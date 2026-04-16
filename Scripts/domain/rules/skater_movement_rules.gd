@@ -14,6 +14,7 @@ class_name SkaterMovementRules
 #   puck_carry_speed_multiplier  — max speed reduction while carrying
 #   backward_thrust_multiplier   — thrust scale when moving against facing
 #   crossover_thrust_multiplier  — thrust scale when moving perpendicular to facing
+#   dash_impulse_magnitude       — speed added per pulse dash
 static func apply_movement(
 		current_velocity: Vector3,
 		move_input: Vector2,
@@ -59,4 +60,35 @@ static func apply_movement(
 	horiz_vel = horiz_vel.move_toward(Vector2.ZERO, current_friction * delta)
 	velocity.x = horiz_vel.x
 	velocity.z = horiz_vel.y
+	return velocity
+
+# Pulse dash — additive impulse in dash_dir, capped at effective_max.
+# Same cap philosophy as apply_movement's thrust block: preserves pre-existing
+# over-max speed (body check, etc.) but prevents free acceleration when already
+# at max (same-direction spamming has no effect).
+#
+# Config keys used:
+#   dash_impulse_magnitude       — speed added per dash (m/s)
+#   max_speed                    — horizontal speed ceiling
+#   puck_carry_speed_multiplier  — applied to ceiling when carrying
+static func apply_dash_impulse(
+		current_velocity: Vector3,
+		dash_dir: Vector3,
+		has_puck: bool,
+		cfg: Dictionary) -> Vector3:
+	var velocity: Vector3 = current_velocity
+	var impulse: Vector3 = dash_dir.normalized() * cfg.dash_impulse_magnitude
+	velocity += impulse
+
+	var effective_max: float = cfg.max_speed * cfg.puck_carry_speed_multiplier if has_puck else cfg.max_speed
+	var horiz := Vector2(velocity.x, velocity.z)
+	var speed: float = horiz.length()
+	if speed > effective_max:
+		var pre_impulse_speed: float = Vector2(
+			velocity.x - impulse.x, velocity.z - impulse.z).length()
+		var target_speed: float = maxf(pre_impulse_speed, effective_max)
+		if speed > target_speed:
+			var limited: Vector2 = horiz.normalized() * target_speed
+			velocity.x = limited.x
+			velocity.z = limited.y
 	return velocity

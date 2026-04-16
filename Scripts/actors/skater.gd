@@ -90,12 +90,14 @@ var bottom_forearm_mesh: MeshInstance3D = null
 
 signal body_checked_player(victim: Skater, impact_force: float, hit_direction: Vector3)
 signal body_block_hit(body: Node3D)
+signal pulse_dashed(dash_direction: Vector3)
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
 var _ring_mesh: MeshInstance3D = null
 var _facing: Vector2 = Vector2.DOWN
 var is_elevated: bool = false
 var is_ghost: bool = false
+var is_braking: bool = false
 var shot_charge: float = 0.0
 var blade_world_velocity: Vector3 = Vector3.ZERO
 var _prev_blade_world_pos: Vector3 = Vector3.ZERO

@@ -26,7 +26,7 @@ For online play the host needs UDP port **7777** forwarded on their router.
 | **Left click (hold + sweep)** | Wrister — sweep blade to charge, release to shoot |
 | **Right click (hold)** | Slapshot — charge up, release to shoot |
 | **Shift (hold)** | Backward skating — facing locks to mouse |
-| **Space** | Brake |
+| **Space** | Brake (no direction) / Pulse dash (hold direction) |
 | **Ctrl (during wind-up)** | Cancel shot — abort a wrister or slapshot wind-up without firing |
 | **Scroll up / down** | Toggle elevated shot |
 

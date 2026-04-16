@@ -6,7 +6,6 @@ const SPEED_LINE_MIN_SPEED: float = 5.5  # minimum speed for speed line effect
 const TELEPORT_THRESHOLD: float = 1.0 # skip frame if skater moved this far (reconcile/faceoff guard)
 
 # Hockey stop VFX — two-layer effect (surface marks + airborne spray) per blade side.
-const STOP_DECEL_THRESHOLD: float = 8.0  # m/s² velocity change to trigger
 const STOP_MIN_SPEED: float = 2.5        # minimum speed at trigger time
 
 # Blade trail — same zero-gap GPU approach as puck trail, one system per skate.
@@ -22,10 +21,10 @@ const ICE_Y: float = 0.005              # world Y for trail dots (just above ice
 # Two GPU trail systems: index 0 = left blade, 1 = right blade
 var _blade_trail_emitters: Array[GPUParticles3D] = []
 var _blade_trail_particles: Array[GPUParticles3D] = []
-var _stop_mark_emitters: Array[CPUParticles3D] = []   # surface scrape marks, one per side
-var _stop_spray_emitters: Array[CPUParticles3D] = []  # airborne snow spray, one per side
+var _stop_spray_emitter: CPUParticles3D = null  # forward fan spray on brake
 var _speed_lines: CPUParticles3D = null
 var _body_check_burst: CPUParticles3D = null
+var _dash_push_emitter: CPUParticles3D = null
 var _charge_light: OmniLight3D = null
 var _prev_pos: Vector3 = Vector3.ZERO
 var _prev_vel: Vector3 = Vector3.ZERO
@@ -46,14 +45,8 @@ func _ready() -> void:
 		add_child(emitter)
 		_blade_trail_emitters.append(emitter)
 
-	for _i: int in 2:
-		var marks: CPUParticles3D = _make_stop_marks_emitter()
-		add_child(marks)
-		_stop_mark_emitters.append(marks)
-
-		var spray: CPUParticles3D = _make_stop_spray_emitter()
-		add_child(spray)
-		_stop_spray_emitters.append(spray)
+	_stop_spray_emitter = _make_stop_spray_emitter()
+	add_child(_stop_spray_emitter)
 
 	_speed_lines = _make_speed_lines_emitter()
 	_speed_lines.position = Vector3(0.0, 0.3, 0.0)
@@ -69,9 +62,13 @@ func _ready() -> void:
 	_charge_light.visible = false
 	add_child(_charge_light)
 
+	_dash_push_emitter = _make_dash_push_emitter()
+	add_child(_dash_push_emitter)
+
 	var skater: Skater = get_parent() as Skater
 	if skater != null:
 		skater.body_checked_player.connect(_on_body_check)
+		skater.pulse_dashed.connect(_on_pulse_dashed)
 
 	_prev_pos = global_position
 
@@ -97,8 +94,6 @@ func _process(delta: float) -> void:
 
 	var flat_vel: Vector3 = Vector3(curr_vel.x, 0.0, curr_vel.z)
 	var speed: float = flat_vel.length()
-	var prev_speed: float = Vector3(_prev_vel.x, 0.0, _prev_vel.z).length()
-	var decel: float = (prev_speed - speed) / delta if delta > 0.0 else 0.0
 	_prev_vel = curr_vel
 
 	# Suppress all VFX when ghosted (offsides / icing)
@@ -116,9 +111,11 @@ func _process(delta: float) -> void:
 	# Skate trails: continuous marks on ice while moving
 	_set_blade_trails_emitting(speed > TRAIL_MIN_SPEED)
 
-	# Hockey stop: fire only when speed is dropping sharply (braking).
-	if decel > STOP_DECEL_THRESHOLD and speed > STOP_MIN_SPEED:
+	# Hockey stop: emit continuously while pure braking, stop when not.
+	if skater.is_braking and speed > STOP_MIN_SPEED:
 		_emit_hockey_stop(skater, flat_vel)
+	else:
+		_stop_spray_emitter.emitting = false
 
 	# Speed lines: small streaks behind the skater at high speed.
 	# direction is in local space — convert world-space backward vector via basis inverse
@@ -141,6 +138,46 @@ func _process(delta: float) -> void:
 		_charge_light.visible = false
 		_charge_light.omni_range = 2.0
 
+
+func _on_pulse_dashed(dash_direction: Vector3) -> void:
+	_emit_dash_push(dash_direction)
+
+func _emit_dash_push(dash_direction: Vector3) -> void:
+	# Spray fires OPPOSITE the dash — the pushing foot kicks ice backward.
+	var anti_dir: Vector3 = -dash_direction
+	anti_dir.y = 0.0
+	if anti_dir.length() < 0.001:
+		return
+	anti_dir = anti_dir.normalized()
+
+	var skater: Skater = get_parent() as Skater
+	if skater == null:
+		return
+
+	var world_dir: Vector3 = (anti_dir + Vector3(0.0, 0.03, 0.0)).normalized()
+	var local_dir: Vector3 = _dash_push_emitter.global_transform.basis.inverse() * world_dir
+	_dash_push_emitter.global_position = skater.global_position + anti_dir * 0.2 + Vector3(0.0, 0.005, 0.0)
+	_dash_push_emitter.direction = local_dir
+	_dash_push_emitter.restart()
+
+func _make_dash_push_emitter() -> CPUParticles3D:
+	var e := CPUParticles3D.new()
+	e.emitting = false
+	e.amount = 25
+	e.lifetime = 0.35
+	e.one_shot = true
+	e.explosiveness = 0.95
+	e.randomness = 0.3
+	e.local_coords = false
+	e.direction = Vector3(1.0, 0.0, 0.0)  # overwritten at emit time
+	e.spread = 25.0
+	e.initial_velocity_min = 4.0
+	e.initial_velocity_max = 10.0
+	e.gravity = Vector3(0.0, -25.0, 0.0)
+	e.scale_amount_min = 0.04
+	e.scale_amount_max = 0.08
+	e.mesh = _make_sphere_mesh(Color(0.95, 0.93, 0.88, 0.80))
+	return e
 
 func _on_body_check(victim: Skater, _force: float, hit_dir: Vector3) -> void:
 	# Burst at the victim's position, emitting outward along the hit direction.
@@ -233,76 +270,30 @@ func _make_blade_trail_sub_emitter(sub_name: String) -> GPUParticles3D:
 	return e
 
 func _emit_hockey_stop(skater: Skater, flat_vel: Vector3) -> void:
-	# Snow fans outward to both sides, perpendicular to travel direction.
-	# Each side fires surface marks (linger on ice) + airborne spray (brief arc).
+	# Snow fans forward in the direction of travel — snowplow look.
 	var forward: Vector3 = flat_vel.normalized()
-	var perp: Vector3 = flat_vel.cross(Vector3.UP).normalized()
-	var sides: Array[float] = [-1.0, 1.0]
-	for i: int in 2:
-		var outward: Vector3 = perp * sides[i]
-		var world_dir: Vector3 = (outward + forward * 0.2 + Vector3(0.0, 0.04, 0.0)).normalized()
-		var world_pos: Vector3 = (
-			skater.global_position
-			+ forward * 0.4
-			+ outward * 0.2
-			+ Vector3(0.0, 0.01, 0.0)
-		)
-		var local_dir: Vector3 = _stop_mark_emitters[i].global_transform.basis.inverse() * world_dir
-		_stop_mark_emitters[i].global_position = world_pos
-		_stop_mark_emitters[i].direction = local_dir
-		_stop_mark_emitters[i].restart()
-
-		_stop_spray_emitters[i].global_position = world_pos
-		_stop_spray_emitters[i].direction = local_dir
-		_stop_spray_emitters[i].restart()
-
-func _make_stop_marks_emitter() -> CPUParticles3D:
-	var e := CPUParticles3D.new()
-	e.emitting = false
-	e.amount = 55
-	e.lifetime = 1.5
-	e.one_shot = true
-	e.explosiveness = 0.9
-	e.randomness = 0.3
-	e.local_coords = false
-	e.direction = Vector3(1.0, 0.0, 0.0)  # overwritten per burst
-	e.spread = 65.0
-	e.initial_velocity_min = 1.5
-	e.initial_velocity_max = 5.0
-	e.gravity = Vector3.ZERO
-	e.scale_amount_min = 0.03
-	e.scale_amount_max = 0.07
-	var disk := CylinderMesh.new()
-	disk.top_radius = 0.5
-	disk.bottom_radius = 0.5
-	disk.height = 0.05
-	disk.radial_segments = 8
-	disk.rings = 1
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(0.95, 0.93, 0.88, 0.7)
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	disk.material = mat
-	e.mesh = disk
-	return e
+	var world_dir: Vector3 = (forward + Vector3(0.0, 0.36, 0.0)).normalized()
+	var local_dir: Vector3 = _stop_spray_emitter.global_transform.basis.inverse() * world_dir
+	_stop_spray_emitter.global_position = skater.global_position + forward * 0.7 + Vector3(0.0, 0.005, 0.0)
+	_stop_spray_emitter.direction = local_dir
+	_stop_spray_emitter.emitting = true
 
 func _make_stop_spray_emitter() -> CPUParticles3D:
 	var e := CPUParticles3D.new()
 	e.emitting = false
-	e.amount = 35
-	e.lifetime = 0.3
-	e.one_shot = true
-	e.explosiveness = 0.9
-	e.randomness = 0.4
+	e.amount = 150
+	e.lifetime = 0.35
+	e.one_shot = false
+	e.explosiveness = 0.0
+	e.randomness = 0.3
 	e.local_coords = false
 	e.direction = Vector3(1.0, 0.0, 0.0)  # overwritten per burst
-	e.spread = 45.0
-	e.initial_velocity_min = 6.0
-	e.initial_velocity_max = 14.0
-	e.gravity = Vector3(0.0, -18.0, 0.0)
-	e.scale_amount_min = 0.02
-	e.scale_amount_max = 0.04
+	e.spread = 65.0                        # wide forward fan
+	e.initial_velocity_min = 3.0
+	e.initial_velocity_max = 9.0
+	e.gravity = Vector3(0.0, -25.0, 0.0)
+	e.scale_amount_min = 0.03
+	e.scale_amount_max = 0.06
 	e.mesh = _make_sphere_mesh(Color(0.95, 0.93, 0.88, 0.85))
 	return e
 
@@ -338,7 +329,7 @@ func _make_body_check_emitter() -> CPUParticles3D:
 	e.spread = 50.0
 	e.initial_velocity_min = 3.0
 	e.initial_velocity_max = 7.0
-	e.gravity = Vector3(0.0, -12.0, 0.0)
+	e.gravity = Vector3(0.0, -25.0, 0.0)
 	e.scale_amount_min = 0.04
 	e.scale_amount_max = 0.08
 	e.mesh = _make_sphere_mesh(Color(0.9, 0.95, 1.0, 0.9))
@@ -356,4 +347,3 @@ func _make_sphere_mesh(color: Color) -> Mesh:
 	mat.albedo_color = color
 	sphere.material = mat
 	return sphere
-

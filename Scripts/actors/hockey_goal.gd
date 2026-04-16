@@ -81,7 +81,7 @@ func _rebuild() -> void:
 
 func _build_goal(
 	goal_z: float,
-	facing: float,
+	face_dir: float,
 	base_pts: PackedVector2Array,
 	top_pts: PackedVector2Array
 ) -> void:
@@ -139,20 +139,20 @@ func _build_goal(
 
 		# Base curve (white, at Y = 0)
 		_add_tube_segment(
-			Vector3(base_pts[i].x,     0.0, goal_z + facing * base_pts[i].y),
-			Vector3(base_pts[i + 1].x, 0.0, goal_z + facing * base_pts[i + 1].y),
+			Vector3(base_pts[i].x,     0.0, goal_z + face_dir * base_pts[i].y),
+			Vector3(base_pts[i + 1].x, 0.0, goal_z + face_dir * base_pts[i + 1].y),
 			tube_dia, base_frame_color
 		)
 
 		# Top shelf (red, at Y = NET_HEIGHT)
 		_add_tube_segment(
-			Vector3(top_pts[i].x,     NET_HEIGHT, goal_z + facing * top_pts[i].y),
-			Vector3(top_pts[i + 1].x, NET_HEIGHT, goal_z + facing * top_pts[i + 1].y),
+			Vector3(top_pts[i].x,     NET_HEIGHT, goal_z + face_dir * top_pts[i].y),
+			Vector3(top_pts[i + 1].x, NET_HEIGHT, goal_z + face_dir * top_pts[i + 1].y),
 			tube_dia, post_color
 		)
 
 	# Netting — ruled surface between the two curves
-	_build_netting(base_pts, top_pts, goal_z, facing)
+	_build_netting(base_pts, top_pts, goal_z, face_dir)
 
 	# Solid back wall to block puck entry through netting seam gaps.
 	# Placed at the net's maximum depth (BASE_P3.y = 1.02m).
@@ -160,14 +160,14 @@ func _build_goal(
 	back_wall.size = Vector3(POST_HALF_WIDTH * 2.0 + 0.1, NET_HEIGHT + 0.1, 0.05)
 	var back_wall_col := CollisionShape3D.new()
 	back_wall_col.shape = back_wall
-	back_wall_col.position = Vector3(0.0, NET_HEIGHT / 2.0, goal_z + facing * 1.0)
+	back_wall_col.position = Vector3(0.0, NET_HEIGHT / 2.0, goal_z + face_dir * 1.0)
 	add_child(back_wall_col)
 
 func _build_netting(
 	base_pts: PackedVector2Array,
 	top_pts: PackedVector2Array,
 	goal_z: float,
-	facing: float
+	face_dir: float
 ) -> void:
 	var verts   := PackedVector3Array()
 	var normals := PackedVector3Array()
@@ -178,14 +178,14 @@ func _build_netting(
 		if i == SEGMENTS - 1:  # skip front opening
 			continue
 
-		var bl := Vector3(base_pts[i].x,     0.0,        goal_z + facing * base_pts[i].y)
-		var br := Vector3(base_pts[i + 1].x, 0.0,        goal_z + facing * base_pts[i + 1].y)
-		var tl := Vector3(top_pts[i].x,      NET_HEIGHT, goal_z + facing * top_pts[i].y)
-		var tr := Vector3(top_pts[i + 1].x,  NET_HEIGHT, goal_z + facing * top_pts[i + 1].y)
+		var bl := Vector3(base_pts[i].x,     0.0,        goal_z + face_dir * base_pts[i].y)
+		var br := Vector3(base_pts[i + 1].x, 0.0,        goal_z + face_dir * base_pts[i + 1].y)
+		var tl := Vector3(top_pts[i].x,      NET_HEIGHT, goal_z + face_dir * top_pts[i].y)
+		var top_right := Vector3(top_pts[i + 1].x,  NET_HEIGHT, goal_z + face_dir * top_pts[i + 1].y)
 
 		var normal := (br - bl).cross(tl - bl).normalized()
 		var base_idx: int = verts.size()
-		verts.append_array([bl, br, tr, tl])
+		verts.append_array([bl, br, top_right, tl])
 		normals.append_array([normal, normal, normal, normal])
 		uvs.append_array([Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(1.0, 1.0), Vector2(0.0, 1.0)])
 		indices.append_array([

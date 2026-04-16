@@ -191,7 +191,7 @@ func _add_ice(half_l: float) -> void:
 	mat.albedo_texture = tex
 	mat.albedo_color = Color.WHITE
 	mat.roughness = 0.08
-	mat.specular = 0.9
+	mat.metallic_specular = 0.9
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	mesh_instance.material_override = mat
 	add_child(mesh_instance)
@@ -292,7 +292,7 @@ func _make_glass_material() -> StandardMaterial3D:
 	mat.albedo_color = glass_color
 	mat.roughness = 0.05
 	mat.metallic = 0.0
-	mat.specular = 1.0
+	mat.metallic_specular = 1.0
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
 

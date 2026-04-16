@@ -55,18 +55,19 @@ static func is_puck_in_defensive_zone(
 # Config keys: zone_post_z, zone_aggressive_z, zone_base_z, zone_conservative_z,
 #              depth_aggressive, depth_base, depth_conservative, depth_defensive
 static func target_depth_for_puck_distance(puck_z_dist: float, cfg: Dictionary) -> float:
+	var t: float
 	if puck_z_dist <= cfg.zone_post_z:
-		var t: float = puck_z_dist / cfg.zone_post_z
+		t = puck_z_dist / cfg.zone_post_z
 		return lerpf(cfg.depth_defensive, cfg.depth_aggressive, t)
 	if puck_z_dist <= cfg.zone_aggressive_z:
 		return cfg.depth_aggressive
 	if puck_z_dist <= cfg.zone_base_z:
-		var t: float = (puck_z_dist - cfg.zone_aggressive_z) / (cfg.zone_base_z - cfg.zone_aggressive_z)
+		t = (puck_z_dist - cfg.zone_aggressive_z) / (cfg.zone_base_z - cfg.zone_aggressive_z)
 		return lerpf(cfg.depth_aggressive, cfg.depth_base, t)
 	if puck_z_dist <= cfg.zone_conservative_z:
-		var t: float = (puck_z_dist - cfg.zone_base_z) / (cfg.zone_conservative_z - cfg.zone_base_z)
+		t = (puck_z_dist - cfg.zone_base_z) / (cfg.zone_conservative_z - cfg.zone_base_z)
 		return lerpf(cfg.depth_base, cfg.depth_conservative, t)
-	var t: float = clampf((puck_z_dist - cfg.zone_conservative_z) / cfg.zone_conservative_z, 0.0, 1.0)
+	t = clampf((puck_z_dist - cfg.zone_conservative_z) / cfg.zone_conservative_z, 0.0, 1.0)
 	return lerpf(cfg.depth_conservative, cfg.depth_defensive, t)
 
 # Lateral X target — project the puck onto the goalie's current depth along

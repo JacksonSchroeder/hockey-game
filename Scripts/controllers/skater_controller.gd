@@ -235,7 +235,7 @@ func get_network_state() -> Array:
 	state.is_ghost = skater.is_ghost
 	return state.to_array()
 
-func apply_network_state(state: SkaterNetworkState) -> void:
+func apply_network_state(_net_state: SkaterNetworkState) -> void:
 	pass  # overridden by RemoteController on client
 	
 signal puck_release_requested(direction: Vector3, power: float)
@@ -608,7 +608,7 @@ func _is_in_slapper_state() -> bool:
 # ── Blade: From Mouse (Top-Hand IK) ───────────────────────────────────────────
 # Input is treated as a desired blade position. The top hand is solved as a
 # consequence, clamped to an asymmetric ROM. See domain/rules/top_hand_ik.gd.
-func _apply_blade_from_mouse(input: InputState, delta: float) -> void:
+func _apply_blade_from_mouse(input: InputState, _delta: float) -> void:
 	var mouse_world: Vector3 = input.mouse_world_pos
 	mouse_world.y = 0.0
 
@@ -777,11 +777,11 @@ func _apply_head_tracking(input: InputState, delta: float) -> void:
 
 # ── Velocity Lean ─────────────────────────────────────────────────────────────
 func _apply_velocity_lean(delta: float) -> void:
-	var max_speed: float = _movement_config().max_speed
+	var cfg_max_speed: float = _movement_config().max_speed
 	var local_vel: Vector3 = skater.global_transform.basis.inverse() * skater.velocity
 	var lean_max: float = deg_to_rad(velocity_lean_max_deg)
-	var target_x: float = -clampf(local_vel.z / max_speed, -1.0, 1.0) * lean_max
-	var target_z: float =  clampf(local_vel.x / max_speed, -1.0, 1.0) * lean_max
+	var target_x: float = -clampf(local_vel.z / cfg_max_speed, -1.0, 1.0) * lean_max
+	var target_z: float =  clampf(local_vel.x / cfg_max_speed, -1.0, 1.0) * lean_max
 	_velocity_lean_x = lerpf(_velocity_lean_x, target_x, velocity_lean_speed * delta)
 	_velocity_lean_z = lerpf(_velocity_lean_z, target_z, velocity_lean_speed * delta)
 

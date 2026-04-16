@@ -34,9 +34,8 @@ static func release_wrister(
 		# Quick shot — aim from the blade, fixed low power.
 		var blade_xz := Vector3(blade_world_pos.x, 0.0, blade_world_pos.z)
 		var dir: Vector3 = (target - blade_xz).normalized()
-		var y: float = cfg.wrister_elevation if is_elevated else 0.0
 		return {
-			"direction": Vector3(dir.x, y, dir.z).normalized(),
+			"direction": Vector3(dir.x, cfg.wrister_elevation if is_elevated else 0.0, dir.z).normalized(),
 			"power": cfg.quick_shot_power,
 		}
 

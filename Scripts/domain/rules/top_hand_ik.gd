@@ -73,10 +73,10 @@ static func solve(
 		var ideal_hand_y: float = blade_y + sqrt(maxf(ideal_drop_sq, 0.0))
 		var hand_y: float = minf(ideal_hand_y, hand_y_max)
 		var stick_horiz: float = _stick_horiz_for(stick_length, hand_y, blade_y)
-		var blade_xz: Vector2 = shoulder_xz + aim_dir * stick_horiz
+		var close_blade_xz: Vector2 = shoulder_xz + aim_dir * stick_horiz
 		return {
 			"hand": Vector3(shoulder_xz.x, hand_y, shoulder_xz.y),
-			"blade": Vector3(blade_xz.x, blade_y, blade_xz.y),
+			"blade": Vector3(close_blade_xz.x, blade_y, close_blade_xz.y),
 		}
 
 	# FAR regime: target is beyond the default stick reach. Hand stays at

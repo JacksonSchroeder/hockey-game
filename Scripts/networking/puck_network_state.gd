@@ -12,7 +12,7 @@ func to_array() -> Array:
 	]
 
 static func from_array(data: Array) -> PuckNetworkState:
-	var state = PuckNetworkState.new()
+	var state := PuckNetworkState.new()
 	state.position = data[0]
 	state.velocity = data[1]
 	state.carrier_peer_id = data[2]

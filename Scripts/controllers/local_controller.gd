@@ -63,7 +63,7 @@ func reconcile(server_state: SkaterNetworkState) -> void:
 		# and would fight it if applied here.
 		return
 	_input_history = _input_history.filter(
-		func(i: InputState): return i.sequence > server_state.last_processed_sequence
+		func(i: InputState) -> bool: return i.sequence > server_state.last_processed_sequence
 	)
 	if not ReconciliationRules.skater_needs_reconcile(
 			skater.global_position, skater.velocity,

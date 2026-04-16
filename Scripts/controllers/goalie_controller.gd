@@ -314,14 +314,16 @@ func _on_puck_released() -> void:
 		_shot_timer = delay
 
 # ── State Serialization ───────────────────────────────────────────────────────
-func get_state() -> Array:
+# Returns the typed network state object. Flattening to Array happens at the
+# RPC boundary (GameManager.get_world_state), not here.
+func get_state() -> GoalieNetworkState:
 	var s := GoalieNetworkState.new()
 	s.position_x = goalie.global_position.x
 	s.position_z = goalie.global_position.z
 	s.rotation_y = goalie.get_goalie_rotation_y()
 	s.state_enum = _state as int
 	s.five_hole_openness = _five_hole_openness
-	return s.to_array()
+	return s
 
 func apply_state(network_state: GoalieNetworkState) -> void:
 	if is_server:

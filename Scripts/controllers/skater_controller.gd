@@ -222,7 +222,9 @@ func _process_input(input: InputState, delta: float) -> void:
 	skater.update_bottom_arm_mesh()
 
 # ── Network State ─────────────────────────────────────────────────────────────
-func get_network_state() -> Array:
+# Returns the typed network state object. Flattening to Array happens at the
+# RPC boundary (GameManager.get_world_state), not here.
+func get_network_state() -> SkaterNetworkState:
 	var state := SkaterNetworkState.new()
 	state.position = skater.global_position
 	state.rotation = skater.global_rotation
@@ -233,7 +235,7 @@ func get_network_state() -> Array:
 	state.facing = skater.get_facing()
 	state.last_processed_sequence = last_processed_sequence
 	state.is_ghost = skater.is_ghost
-	return state.to_array()
+	return state
 
 func apply_network_state(_net_state: SkaterNetworkState) -> void:
 	pass  # overridden by RemoteController on client

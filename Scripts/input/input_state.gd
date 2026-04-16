@@ -35,7 +35,7 @@ func to_array() -> Array:
 	]
 
 static func from_array(data: Array) -> InputState:
-	var state = InputState.new()
+	var state := InputState.new()
 	state.sequence = data[0]
 	state.delta = data[1]
 	state.move_vector = Vector2(data[2], data[3])

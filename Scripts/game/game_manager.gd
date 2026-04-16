@@ -386,15 +386,18 @@ func _generate_player_colors(team_id: int) -> Dictionary:
 	}
 
 # ── World State ───────────────────────────────────────────────────────────────
+# Assembles the flat Array that the RPC layer transmits. Controllers return
+# typed network state objects; serialization via to_array() happens here, at
+# the RPC boundary.
 func get_world_state() -> Array:
 	var state: Array = []
 	for peer_id in players:
 		var record: PlayerRecord = players[peer_id]
 		state.append(peer_id)
-		state.append(record.controller.get_network_state())
-	state.append_array(puck_controller.get_state())
+		state.append(record.controller.get_network_state().to_array())
+	state.append_array(puck_controller.get_state().to_array())
 	for gc: GoalieController in goalie_controllers:
-		state.append_array(gc.get_state())
+		state.append_array(gc.get_state().to_array())
 	state.append(_state_machine.scores[0])
 	state.append(_state_machine.scores[1])
 	state.append(_state_machine.current_phase)

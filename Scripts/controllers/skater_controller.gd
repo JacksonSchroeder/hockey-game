@@ -397,7 +397,7 @@ func _state_slapper_charge_without_puck(input: InputState, delta: float) -> void
 			# Compute direction/power, then signal up — GameManager acquires
 			# and releases the puck. Controller transitions immediately.
 			var locked_dir_3d := Vector3(_locked_slapper_dir.x, 0.0, _locked_slapper_dir.y)
-			var cfg: Dictionary = _slapper_config()
+			var cfg: ShotMechanics.SlapperConfig = _slapper_config()
 			var result := ShotMechanics.release_slapper(
 					blade_world,
 					input.mouse_world_pos,
@@ -580,7 +580,7 @@ func _release_slapper(input: InputState, one_timer: bool = false) -> void:
 	if has_puck:
 		# Direction is locked at the moment slap was pressed — no mid-swing steering.
 		var locked_dir_3d := Vector3(_locked_slapper_dir.x, 0.0, _locked_slapper_dir.y)
-		var cfg: Dictionary = _slapper_config()
+		var cfg: ShotMechanics.SlapperConfig = _slapper_config()
 		# One-timers always fire at max power regardless of actual charge built.
 		var charge: float = cfg.max_slapper_charge_time if one_timer else _slapper_charge_timer
 		var result := ShotMechanics.release_slapper(
@@ -876,7 +876,7 @@ func _apply_movement(input: InputState, delta: float) -> void:
 	if _state in [State.SLAPPER_CHARGE_WITH_PUCK, State.SHOT_BLOCKING]:
 		return
 
-	var cfg: Dictionary = _movement_config()
+	var cfg: SkaterMovementRules.MovementConfig = _movement_config()
 	var wants_dash: bool = (
 		input.brake
 		and input.move_vector.length() > move_deadzone
@@ -898,43 +898,43 @@ func _apply_movement(input: InputState, delta: float) -> void:
 				skater.velocity, input.move_vector, skater.rotation.y,
 				has_puck, input.brake, delta, cfg)
 
-func _movement_config() -> Dictionary:
-	return {
-		"thrust": thrust,
-		"friction": friction,
-		"max_speed": max_speed,
-		"move_deadzone": move_deadzone,
-		"brake_multiplier": brake_multiplier,
-		"puck_carry_speed_multiplier": puck_carry_speed_multiplier,
-		"backward_thrust_multiplier": backward_thrust_multiplier,
-		"crossover_thrust_multiplier": crossover_thrust_multiplier,
-		"dash_impulse_magnitude": dash_impulse_magnitude,
-	}
-
-func _block_movement_config() -> Dictionary:
-	var cfg: Dictionary = _movement_config()
-	cfg["max_speed"] = max_speed * block_speed_multiplier
-	cfg["thrust"] = thrust * block_speed_multiplier
+func _movement_config() -> SkaterMovementRules.MovementConfig:
+	var cfg := SkaterMovementRules.MovementConfig.new()
+	cfg.thrust = thrust
+	cfg.friction = friction
+	cfg.max_speed = max_speed
+	cfg.move_deadzone = move_deadzone
+	cfg.brake_multiplier = brake_multiplier
+	cfg.puck_carry_speed_multiplier = puck_carry_speed_multiplier
+	cfg.backward_thrust_multiplier = backward_thrust_multiplier
+	cfg.crossover_thrust_multiplier = crossover_thrust_multiplier
+	cfg.dash_impulse_magnitude = dash_impulse_magnitude
 	return cfg
 
-func _wrister_config() -> Dictionary:
-	return {
-		"min_wrister_power": min_wrister_power,
-		"max_wrister_power": max_wrister_power,
-		"max_wrister_charge_distance": max_wrister_charge_distance,
-		"backhand_power_coefficient": backhand_power_coefficient,
-		"quick_shot_power": quick_shot_power,
-		"quick_shot_threshold": quick_shot_threshold,
-		"wrister_elevation": wrister_elevation,
-	}
+func _block_movement_config() -> SkaterMovementRules.MovementConfig:
+	var cfg: SkaterMovementRules.MovementConfig = _movement_config()
+	cfg.max_speed = max_speed * block_speed_multiplier
+	cfg.thrust = thrust * block_speed_multiplier
+	return cfg
 
-func _slapper_config() -> Dictionary:
-	return {
-		"min_slapper_power": min_slapper_power,
-		"max_slapper_power": max_slapper_power,
-		"max_slapper_charge_time": max_slapper_charge_time,
-		"slapper_elevation": slapper_elevation,
-	}
+func _wrister_config() -> ShotMechanics.WristerConfig:
+	var cfg := ShotMechanics.WristerConfig.new()
+	cfg.min_wrister_power = min_wrister_power
+	cfg.max_wrister_power = max_wrister_power
+	cfg.max_wrister_charge_distance = max_wrister_charge_distance
+	cfg.backhand_power_coefficient = backhand_power_coefficient
+	cfg.quick_shot_power = quick_shot_power
+	cfg.quick_shot_threshold = quick_shot_threshold
+	cfg.wrister_elevation = wrister_elevation
+	return cfg
+
+func _slapper_config() -> ShotMechanics.SlapperConfig:
+	var cfg := ShotMechanics.SlapperConfig.new()
+	cfg.min_slapper_power = min_slapper_power
+	cfg.max_slapper_power = max_slapper_power
+	cfg.max_slapper_charge_time = max_slapper_charge_time
+	cfg.slapper_elevation = slapper_elevation
+	return cfg
 
 # Converts the world-space blade_height to upper-body-local Y.
 # Uses the upper body's world Y so the result is correct regardless of where
@@ -954,25 +954,25 @@ func _blade_y_pitch_corrected(blade_local_z: float) -> float:
 		base += blade_local_z * sin(pitch)
 	return base
 
-func _ik_config() -> Dictionary:
-	return {
-		"stick_length": stick_length,
-		"blade_y": _blade_y_local(),
-		"hand_rest_y": hand_rest_y,
-		"hand_y_max": hand_y_max,
-		"rom_forehand_angle_max": deg_to_rad(rom_forehand_angle_max_deg),
-		"rom_backhand_angle_max": deg_to_rad(rom_backhand_angle_max_deg),
-		"rom_forehand_reach_max": rom_forehand_reach_max,
-		"rom_backhand_reach_max": rom_backhand_reach_max,
-	}
+func _ik_config() -> TopHandIK.Config:
+	var cfg := TopHandIK.Config.new()
+	cfg.stick_length = stick_length
+	cfg.blade_y = _blade_y_local()
+	cfg.hand_rest_y = hand_rest_y
+	cfg.hand_y_max = hand_y_max
+	cfg.rom_forehand_angle_max = deg_to_rad(rom_forehand_angle_max_deg)
+	cfg.rom_backhand_angle_max = deg_to_rad(rom_backhand_angle_max_deg)
+	cfg.rom_forehand_reach_max = rom_forehand_reach_max
+	cfg.rom_backhand_reach_max = rom_backhand_reach_max
+	return cfg
 
-func _bottom_hand_ik_config() -> Dictionary:
-	return {
-		"hand_y": bh_hand_y,
-		"backhand_angle": _bh_backhand_angle(),
-		"release_angle_max": deg_to_rad(bh_release_angle_deg),
-		"release_angle_band": deg_to_rad(bh_release_angle_band_deg),
-	}
+func _bottom_hand_ik_config() -> BottomHandIK.Config:
+	var cfg := BottomHandIK.Config.new()
+	cfg.hand_y = bh_hand_y
+	cfg.backhand_angle = _bh_backhand_angle()
+	cfg.release_angle_max = deg_to_rad(bh_release_angle_deg)
+	cfg.release_angle_band = deg_to_rad(bh_release_angle_band_deg)
+	return cfg
 
 # Blade world angle toward the backhand side, in the skater's body frame.
 # Returns a positive value when the blade is on the backhand side; 0 on forehand.
@@ -1001,7 +1001,7 @@ func _update_bottom_hand() -> void:
 	# Derive grip Y from the stick shaft so the hand stays on the stick regardless
 	# of pitch lean or reach. bh_hand_y offsets for fine-tuning.
 	var grip_y: float = lerpf(hand_local.y, blade_local.y, bottom_hand_grip_fraction) + bh_hand_y
-	var cfg: Dictionary = _bottom_hand_ik_config()
+	var cfg: BottomHandIK.Config = _bottom_hand_ik_config()
 	cfg.hand_y = grip_y
 	var bh: Vector3 = BottomHandIK.solve(
 			skater.bottom_shoulder.position,

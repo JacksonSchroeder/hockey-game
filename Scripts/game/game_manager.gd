@@ -30,9 +30,9 @@ var _spawner: ActorSpawner = null
 var teams: Array[Team] = []
 var puck: Puck = null
 var goals: Array[HockeyGoal] = []
-var goalies: Array = []
+var goalies: Array[Goalie] = []
 var goalie_controllers: Array[GoalieController] = []
-var players: Dictionary = {}  # peer_id -> PlayerRecord (with Skater/Controller refs)
+var players: Dictionary[int, PlayerRecord] = {}
 var puck_controller: PuckController = null
 
 # ── Shot-on-goal tracking (host only) ────────────────────────────────────────
@@ -44,6 +44,30 @@ const SHOT_ON_GOAL_TIMEOUT: float = 5.0
 
 func _ready() -> void:
 	randomize()
+	_wire_network_signals()
+
+# NetworkManager observes ENet + RPC traffic and emits signals; GameManager
+# listens and executes the corresponding orchestration. Keeps the upward
+# call discipline (infrastructure never reaches into application).
+func _wire_network_signals() -> void:
+	NetworkManager.set_world_state_provider(get_world_state)
+	NetworkManager.host_ready.connect(on_host_started)
+	NetworkManager.client_connected.connect(on_connected_to_server)
+	NetworkManager.disconnected_from_server.connect(on_scene_exit)
+	NetworkManager.peer_joined.connect(on_player_connected)
+	NetworkManager.peer_disconnected.connect(on_player_disconnected)
+	NetworkManager.world_state_received.connect(apply_world_state)
+	NetworkManager.slot_assigned.connect(on_slot_assigned)
+	NetworkManager.remote_skater_spawn_requested.connect(spawn_remote_skater)
+	NetworkManager.existing_players_synced.connect(sync_existing_players)
+	NetworkManager.local_puck_pickup_confirmed.connect(on_local_player_picked_up_puck)
+	NetworkManager.local_puck_stolen.connect(on_local_player_puck_stolen)
+	NetworkManager.remote_puck_release_received.connect(on_remote_puck_release)
+	NetworkManager.carrier_puck_dropped.connect(on_carrier_puck_dropped)
+	NetworkManager.goal_received.connect(on_goal_scored)
+	NetworkManager.faceoff_positions_received.connect(on_faceoff_positions)
+	NetworkManager.game_reset_received.connect(on_game_reset)
+	NetworkManager.stats_received.connect(apply_stats)
 
 # ── Process ───────────────────────────────────────────────────────────────────
 func _process(delta: float) -> void:
@@ -242,7 +266,7 @@ func _spawn_puck() -> void:
 
 func _spawn_goalies() -> void:
 	var result: Dictionary = _spawner.spawn_goalie_pair(puck, NetworkManager.is_host)
-	goalies = [result.top_goalie, result.bottom_goalie]
+	goalies = [result.top_goalie as Goalie, result.bottom_goalie as Goalie]
 	goalie_controllers = [result.top_controller, result.bottom_controller]
 	# top goalie (negative-Z) defends Team 1's end; bottom (positive-Z) defends Team 0's.
 	teams[1].goalie_controller = result.top_controller
@@ -590,7 +614,7 @@ func get_puck() -> Puck:
 
 func get_goalie_world_positions() -> Array[Vector3]:
 	var positions: Array[Vector3] = []
-	for goalie: Node3D in goalies:
+	for goalie: Goalie in goalies:
 		positions.append(goalie.global_position)
 	return positions
 
@@ -738,20 +762,25 @@ func get_period_scores() -> Array:
 	return _state_machine.period_scores
 
 func apply_stats(data: Array) -> void:
+	# Wire format (must match _sync_stats_to_clients):
+	#   [pid, G, A, SOG, HITS] × N players   (5 ints each)
+	#   team_shots[0], team_shots[1]         (2 ints)
+	#   period_scores[0][0..2], [1][0..2]    (6 ints)
+	const PLAYER_RECORD_SIZE: int = 5
+	const FOOTER_SIZE: int = 2 + 2 * 3  # team_shots + period_scores for 2 teams × 3 periods
+	var players_end: int = data.size() - FOOTER_SIZE
 	var i: int = 0
-	while i + 4 < data.size():
+	while i < players_end:
 		var pid: int = data[i]
 		if players.has(pid):
-			players[pid].stats = PlayerStats.from_array(data.slice(i + 1, i + 5))
-		i += 5
-	if i + 1 < data.size():
-		_state_machine.team_shots[0] = data[i]
-		_state_machine.team_shots[1] = data[i + 1]
-		i += 2
-	if i + 5 < data.size():
-		for team_id: int in 2:
-			for p: int in 3:
-				_state_machine.period_scores[team_id][p] = data[i]
-				i += 1
+			players[pid].stats = PlayerStats.from_array(data.slice(i + 1, i + PLAYER_RECORD_SIZE))
+		i += PLAYER_RECORD_SIZE
+	_state_machine.team_shots[0] = data[i]
+	_state_machine.team_shots[1] = data[i + 1]
+	i += 2
+	for team_id: int in 2:
+		for p: int in 3:
+			_state_machine.period_scores[team_id][p] = data[i]
+			i += 1
 	shots_on_goal_changed.emit(_state_machine.team_shots[0], _state_machine.team_shots[1])
 	stats_updated.emit()

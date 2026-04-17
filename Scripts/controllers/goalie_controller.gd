@@ -40,7 +40,7 @@ extends Node
 @export var part_lerp_speed: float = 6.0
 @export var reaction_lerp_speed: float = 18.0
 @export var recovery_lerp_speed: float = 3.0
-@export var interpolation_delay: float = 0.1
+@export var interpolation_delay: float = Constants.NETWORK_INTERPOLATION_DELAY
 
 @export var low_shot_threshold: float = 0.45
 @export var elevated_threshold: float = 0.45
@@ -338,17 +338,7 @@ func _get_config(state: State) -> GoalieBodyConfig:
 			c.glove_rot     = Vector3.ZERO
 			c.stick_pos     = Vector3(0.0,  0.02,  -0.25)
 			c.stick_rot     = Vector3.ZERO
-			if _reacting_to_shot and _shot_is_elevated:
-				# Move glove or blocker toward projected impact height.
-				# shot_local_x > 0 = goalie's right = blocker side (for catches_left=true).
-				var shot_local_x: float = (_shot_impact_x - _goal_center_x) * -_direction_sign
-				var target_y: float = clampf(_shot_impact_y, react_hand_y_min, react_hand_y_max)
-				if shot_local_x <= 0.0:
-					c.glove_pos = Vector3(c.glove_pos.x, target_y, react_hand_z)
-					c.glove_rot = Vector3(-25.0, 0.0, 0.0)
-				else:
-					c.blocker_pos = Vector3(c.blocker_pos.x, target_y, react_hand_z)
-					c.blocker_rot = Vector3(-25.0, 0.0, 0.0)
+			_apply_elevated_shot_reaction(c)
 		State.BUTTERFLY:
 			c.left_pad_pos  = Vector3(-0.42 - _five_hole_openness, 0.14, -0.20)
 			c.left_pad_rot  = Vector3(0.0, 0.0, -90.0)
@@ -364,15 +354,7 @@ func _get_config(state: State) -> GoalieBodyConfig:
 			c.glove_rot     = Vector3.ZERO
 			c.stick_pos     = Vector3(0.0,  0.02,  -0.30)
 			c.stick_rot     = Vector3.ZERO
-			if _reacting_to_shot and _shot_is_elevated:
-				var shot_local_x: float = (_shot_impact_x - _goal_center_x) * -_direction_sign
-				var target_y: float = clampf(_shot_impact_y, react_hand_y_min, react_hand_y_max)
-				if shot_local_x <= 0.0:
-					c.glove_pos = Vector3(c.glove_pos.x, target_y, react_hand_z)
-					c.glove_rot = Vector3(-25.0, 0.0, 0.0)
-				else:
-					c.blocker_pos = Vector3(c.blocker_pos.x, target_y, react_hand_z)
-					c.blocker_rot = Vector3(-25.0, 0.0, 0.0)
+			_apply_elevated_shot_reaction(c)
 		State.RVH_LEFT:
 			c.left_pad_pos  = Vector3( 0.04, 0.14, 0.0)
 			c.left_pad_rot  = Vector3(0.0, rvh_post_pad_angle, -90.0)
@@ -411,6 +393,21 @@ func _get_config(state: State) -> GoalieBodyConfig:
 		c.blocker_pos = Vector3(-tmp_pos.x, tmp_pos.y, tmp_pos.z)
 		c.blocker_rot = tmp_rot
 	return c
+
+# Move glove or blocker toward projected impact height when reacting to an
+# elevated shot. shot_local_x > 0 = goalie's right = blocker side (for
+# catches_left=true). Called from STANDING/BUTTERFLY branches of _get_config.
+func _apply_elevated_shot_reaction(c: GoalieBodyConfig) -> void:
+	if not _reacting_to_shot or not _shot_is_elevated:
+		return
+	var shot_local_x: float = (_shot_impact_x - _goal_center_x) * -_direction_sign
+	var target_y: float = clampf(_shot_impact_y, react_hand_y_min, react_hand_y_max)
+	if shot_local_x <= 0.0:
+		c.glove_pos = Vector3(c.glove_pos.x, target_y, react_hand_z)
+		c.glove_rot = Vector3(-25.0, 0.0, 0.0)
+	else:
+		c.blocker_pos = Vector3(c.blocker_pos.x, target_y, react_hand_z)
+		c.blocker_rot = Vector3(-25.0, 0.0, 0.0)
 
 # ── Shot Detection ────────────────────────────────────────────────────────────
 func _on_puck_released() -> void:
@@ -457,32 +454,21 @@ func apply_state(network_state: GoalieNetworkState) -> void:
 
 func _interpolate() -> void:
 	var render_time: float = _current_time - interpolation_delay
-	if _state_buffer.size() < 2:
+	var bracket: BufferedStateInterpolator.BracketResult = BufferedStateInterpolator.find_bracket(
+			_state_buffer, render_time)
+	if bracket == null:
 		return
-	var from_state: BufferedGoalieState = null
-	var to_state: BufferedGoalieState = null
-	for i in range(_state_buffer.size() - 1):
-		var a: BufferedGoalieState = _state_buffer[i]
-		var b: BufferedGoalieState = _state_buffer[i + 1]
-		if a.timestamp <= render_time and render_time <= b.timestamp:
-			from_state = a
-			to_state = b
-			break
-	if from_state == null or to_state == null:
-		_apply_network_state(_state_buffer.back().state)
-		return
-	var t: float = clampf(
-		(render_time - from_state.timestamp) / (to_state.timestamp - from_state.timestamp),
-		0.0, 1.0)
+	var from_state: GoalieNetworkState = bracket.from_state
+	var to_state: GoalieNetworkState = bracket.to_state
+	var t: float = bracket.t
 	var interpolated := GoalieNetworkState.new()
-	interpolated.position_x = lerpf(from_state.state.position_x, to_state.state.position_x, t)
-	interpolated.position_z = lerpf(from_state.state.position_z, to_state.state.position_z, t)
-	interpolated.rotation_y = lerp_angle(from_state.state.rotation_y, to_state.state.rotation_y, t)
-	interpolated.five_hole_openness = lerpf(from_state.state.five_hole_openness, to_state.state.five_hole_openness, t)
-	interpolated.state_enum = to_state.state.state_enum
+	interpolated.position_x = lerpf(from_state.position_x, to_state.position_x, t)
+	interpolated.position_z = lerpf(from_state.position_z, to_state.position_z, t)
+	interpolated.rotation_y = lerp_angle(from_state.rotation_y, to_state.rotation_y, t)
+	interpolated.five_hole_openness = lerpf(from_state.five_hole_openness, to_state.five_hole_openness, t)
+	interpolated.state_enum = to_state.state_enum
 	_apply_network_state(interpolated)
-	while _state_buffer.size() > 2 and _state_buffer[1].timestamp < render_time:
-		_state_buffer.pop_front()
+	BufferedStateInterpolator.drop_stale(_state_buffer, render_time)
 
 func _apply_network_state(s: GoalieNetworkState) -> void:
 	goalie.set_goalie_position(s.position_x, s.position_z)
@@ -498,44 +484,44 @@ func _is_puck_in_defensive_zone() -> bool:
 			_direction_sign, _defensive_zone_config())
 
 # ── Rule configs ──────────────────────────────────────────────────────────────
-func _shot_detection_config() -> Dictionary:
-	return {
-		"shot_speed_threshold": shot_speed_threshold,
-		"net_half_width": net_half_width,
-		"net_margin": net_margin,
-		"reaction_delay": reaction_delay,
-		"low_shot_threshold": low_shot_threshold,
-		"elevated_threshold": elevated_threshold,
-		"fake_threshold": fake_threshold,
-	}
+func _shot_detection_config() -> GoalieBehaviorRules.ShotDetectionConfig:
+	var cfg := GoalieBehaviorRules.ShotDetectionConfig.new()
+	cfg.shot_speed_threshold = shot_speed_threshold
+	cfg.net_half_width = net_half_width
+	cfg.net_margin = net_margin
+	cfg.reaction_delay = reaction_delay
+	cfg.low_shot_threshold = low_shot_threshold
+	cfg.elevated_threshold = elevated_threshold
+	cfg.fake_threshold = fake_threshold
+	return cfg
 
-func _pressure_config() -> Dictionary:
-	return {
-		"pressure_butterfly_distance": pressure_butterfly_distance,
-		"pressure_velocity_threshold": pressure_velocity_threshold,
-		"pressure_lateral_margin": pressure_lateral_margin,
-		"net_half_width": net_half_width,
-	}
+func _pressure_config() -> GoalieBehaviorRules.PressureConfig:
+	var cfg := GoalieBehaviorRules.PressureConfig.new()
+	cfg.pressure_butterfly_distance = pressure_butterfly_distance
+	cfg.pressure_velocity_threshold = pressure_velocity_threshold
+	cfg.pressure_lateral_margin = pressure_lateral_margin
+	cfg.net_half_width = net_half_width
+	return cfg
 
 func _is_under_pressure() -> bool:
 	return GoalieBehaviorRules.is_under_pressure(
 			puck.global_position, _puck_approach_velocity,
 			_goal_line_z, _goal_center_x, _pressure_config())
 
-func _defensive_zone_config() -> Dictionary:
-	return {
-		"zone_post_z": zone_post_z,
-		"rvh_early_angle": rvh_early_angle,
-	}
+func _defensive_zone_config() -> GoalieBehaviorRules.DefensiveZoneConfig:
+	var cfg := GoalieBehaviorRules.DefensiveZoneConfig.new()
+	cfg.zone_post_z = zone_post_z
+	cfg.rvh_early_angle = rvh_early_angle
+	return cfg
 
-func _depth_config() -> Dictionary:
-	return {
-		"zone_post_z": zone_post_z,
-		"zone_aggressive_z": zone_aggressive_z,
-		"zone_base_z": zone_base_z,
-		"zone_conservative_z": zone_conservative_z,
-		"depth_aggressive": depth_aggressive,
-		"depth_base": depth_base,
-		"depth_conservative": depth_conservative,
-		"depth_defensive": depth_defensive,
-	}
+func _depth_config() -> GoalieBehaviorRules.DepthConfig:
+	var cfg := GoalieBehaviorRules.DepthConfig.new()
+	cfg.zone_post_z = zone_post_z
+	cfg.zone_aggressive_z = zone_aggressive_z
+	cfg.zone_base_z = zone_base_z
+	cfg.zone_conservative_z = zone_conservative_z
+	cfg.depth_aggressive = depth_aggressive
+	cfg.depth_base = depth_base
+	cfg.depth_conservative = depth_conservative
+	cfg.depth_defensive = depth_defensive
+	return cfg

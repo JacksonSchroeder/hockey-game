@@ -74,7 +74,7 @@ The puck's pickup zone `Area3D` sits on `LAYER_WALLS \| LAYER_BLADE_AREAS` (3) w
 
 ### Launch Modes
 
-All paths go through `MainMenu.tscn`. `NetworkManager._ready()` is a no-op. The menu calls `start_offline()`, `start_host()`, or `start_client(ip)` — these configure ENet and set `is_host` but do not spawn the world. World spawn is deferred: `Hockey.tscn`'s root runs `game_scene.gd`, whose `_ready()` calls `NetworkManager.on_game_scene_ready()` → `GameManager.on_host_started()`. Clients spawn via `_on_connected_to_server()` as before.
+All paths go through `MainMenu.tscn`. `NetworkManager._ready()` is a no-op. The menu calls `start_offline()`, `start_host()`, or `start_client(ip)` — these configure ENet and set `is_host` but do not spawn the world. World spawn is deferred: `Hockey.tscn`'s root runs `game_scene.gd`, whose `_ready()` calls `NetworkManager.on_game_scene_ready()` which emits `host_ready` (hosts only); `GameManager` has connected that signal to `on_host_started` in `_ready()` and handles the spawn. Clients spawn via the `client_connected` signal emitted from `_on_connected_to_server()`.
 
 Graceful shutdown: `_exit_tree` closes the ENet peer. Server disconnect on client side also triggers close.
 
@@ -262,7 +262,7 @@ Period clock (`GameRules.PERIOD_DURATION = 240s`, `NUM_PERIODS = 3`) ticks down 
 
 The `GameStateMachine` exposes `is_movement_locked()` — true during `GOAL_SCORED`, `FACEOFF_PREP`, `END_OF_PERIOD`, and `GAME_OVER`. `GameManager` re-exposes this as an instance method and is passed into each controller at `setup()` as the `game_state` dependency. Controllers call `_game_state.is_movement_locked()` every frame:
 - `LocalController._physics_process`: zeros velocity, drains `_input_history`, skips input gathering and processing
-- `RemoteController._drive_from_input`: still advances `_last_processed_sequence` (keeps reconcile bookkeeping current) but zeros velocity and skips `_process_input`
+- `RemoteController._drive_from_input`: still advances `last_processed_sequence` (keeps reconcile bookkeeping current) but zeros velocity and skips `_process_input`
 - `LocalController.reconcile`: returns early during locked phases — `on_faceoff_positions` (reliable RPC) is the authoritative source of faceoff positions
 
 ### Controller API
@@ -277,7 +277,7 @@ Two `Team` objects created at startup. Each owns a `defended_goal` (`HockeyGoal`
 
 ### Player Colors
 
-Each player gets two colors via `PlayerRules.generate_primary_color(team_id)` / `generate_secondary_color(team_id)`. Colors are fixed per team — all teammates match:
+Each player's UI badge uses `PlayerRules.generate_primary_color(team_id)`; skater meshes are painted via `generate_jersey_color` / `generate_helmet_color` / `generate_pants_color`. Colors are fixed per team — all teammates match:
 
 - **Team 0 (home):** primary = Pittsburgh Penguins Vegas Gold (#FFB81C); secondary = Penguins Black.
 - **Team 1 (away):** primary = Toronto Maple Leafs Blue (#003E7E); secondary = Leafs White.

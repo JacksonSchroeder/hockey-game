@@ -1,7 +1,7 @@
 class_name PuckController
 extends Node
 
-@export var interpolation_delay: float = 0.1
+@export var interpolation_delay: float = Constants.NETWORK_INTERPOLATION_DELAY
 @export var prediction_reconcile_threshold: float = 3.0
 @export var position_correction_blend: float = 0.3
 @export var velocity_correction_blend: float = 0.5
@@ -156,27 +156,17 @@ func apply_state(state: PuckNetworkState) -> void:
 
 func _interpolate() -> void:
 	var render_time: float = _current_time - interpolation_delay
-	if _state_buffer.size() < 2:
+	var bracket: BufferedStateInterpolator.BracketResult = BufferedStateInterpolator.find_bracket(
+			_state_buffer, render_time)
+	if bracket == null:
 		return
-	var from_state: BufferedPuckState = null
-	var to_state: BufferedPuckState = null
-	for i in range(_state_buffer.size() - 1):
-		var a: BufferedPuckState = _state_buffer[i]
-		var b: BufferedPuckState = _state_buffer[i + 1]
-		if a.timestamp <= render_time and render_time <= b.timestamp:
-			from_state = a
-			to_state = b
-			break
-	if from_state == null or to_state == null:
-		_apply_state_to_puck(_state_buffer.back().state)
-		return
-	var t: float = clampf((render_time - from_state.timestamp) / (to_state.timestamp - from_state.timestamp), 0.0, 1.0)
+	var from_state: PuckNetworkState = bracket.from_state
+	var to_state: PuckNetworkState = bracket.to_state
 	var interpolated := PuckNetworkState.new()
-	interpolated.position = from_state.state.position.lerp(to_state.state.position, t)
-	interpolated.velocity = from_state.state.velocity.lerp(to_state.state.velocity, t)
+	interpolated.position = from_state.position.lerp(to_state.position, bracket.t)
+	interpolated.velocity = from_state.velocity.lerp(to_state.velocity, bracket.t)
 	_apply_state_to_puck(interpolated)
-	while _state_buffer.size() > 2 and _state_buffer[1].timestamp < render_time:
-		_state_buffer.pop_front()
+	BufferedStateInterpolator.drop_stale(_state_buffer, render_time)
 
 func _apply_state_to_puck(state: PuckNetworkState) -> void:
 	# Position only — puck is frozen during interpolation, Jolt ignores velocity.

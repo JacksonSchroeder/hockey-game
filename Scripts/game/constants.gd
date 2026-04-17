@@ -23,6 +23,10 @@ const MASK_SKATER: int = LAYER_WALLS | LAYER_SKATER_BODIES   # blocked by boards
 const PORT: int = 7777
 const INPUT_RATE: int = 60
 const STATE_RATE: int = 20
+# Client-side render delay when interpolating buffered snapshots. Shared default
+# for RemoteController / PuckController / GoalieController; each controller
+# still exposes it as @export so individual actors can be tuned independently.
+const NETWORK_INTERPOLATION_DELAY: float = 0.1
 
 # ── Physics ───────────────────────────────────────────────────────────────────
 const PHYSICS_TICK: int = 240

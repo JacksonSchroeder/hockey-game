@@ -7,17 +7,27 @@ class_name ShotMechanics
 #   direction: Vector3 — normalized, includes Y if elevated
 #   power: float       — final shot power after backhand penalty / charge curve
 
+class WristerConfig:
+	var min_wrister_power: float = 0.0
+	var max_wrister_power: float = 0.0
+	var max_wrister_charge_distance: float = 0.0
+	var backhand_power_coefficient: float = 0.0
+	var quick_shot_power: float = 0.0
+	var quick_shot_threshold: float = 0.0
+	var wrister_elevation: float = 0.0
+
+class SlapperConfig:
+	var min_slapper_power: float = 0.0
+	var max_slapper_power: float = 0.0
+	var max_slapper_charge_time: float = 0.0
+	var slapper_elevation: float = 0.0
+
 # Wrister release. Quick shots (very short charge) aim along player→blade —
 # the blade tracks the cursor via IK but ROM constraints prevent it going
 # behind the player, so this direction is always valid. Full wristers aim
 # from the drag direction with power scaling over the charge distance.
 # Backhand is detected by comparing blade position to shoulder position in
 # local space and penalised by a coefficient.
-#
-# Config keys (floats):
-#   min_wrister_power, max_wrister_power, max_wrister_charge_distance,
-#   backhand_power_coefficient, quick_shot_power, quick_shot_threshold,
-#   wrister_elevation
 static func release_wrister(
 		player_pos: Vector3,
 		mouse_world_pos: Vector3,
@@ -27,7 +37,7 @@ static func release_wrister(
 		is_left_handed: bool,
 		is_elevated: bool,
 		charge_distance: float,
-		cfg: Dictionary,
+		cfg: WristerConfig,
 		charge_direction: Vector3 = Vector3.ZERO) -> Dictionary:
 	var target := Vector3(mouse_world_pos.x, 0.0, mouse_world_pos.z)
 	var charge_t: float = clampf(charge_distance / cfg.max_wrister_charge_distance, 0.0, 1.0)
@@ -70,9 +80,6 @@ static func release_wrister(
 
 # Slapper release — power scales linearly with charge time.
 #
-# Config keys: min_slapper_power, max_slapper_power, max_slapper_charge_time,
-#              slapper_elevation
-#
 # shot_direction: when non-zero, used as the shot direction directly (locked
 # at press time); falls back to blade→mouse when zero (backwards compat).
 static func release_slapper(
@@ -80,7 +87,7 @@ static func release_slapper(
 		mouse_world_pos: Vector3,
 		is_elevated: bool,
 		charge_time: float,
-		cfg: Dictionary,
+		cfg: SlapperConfig,
 		shot_direction: Vector3 = Vector3.ZERO) -> Dictionary:
 	var shot_dir: Vector3
 	if shot_direction.length_squared() > 0.0001:

@@ -66,7 +66,7 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 | `domain/state/player_stats.gd` | Per-player stat data object: goals, assists, shots_on_goal, hits. Serializes to/from Array for RPC transport. |
 | `domain/config/game_rules.gd` | Game-rule constants: timings, rink geometry, blue/goal line Z, icing duration, faceoff positions, max players, ice friction |
 | `domain/rules/phase_rules.gd` | `is_dead_puck_phase`, `is_movement_locked` |
-| `domain/rules/player_rules.gd` | Team balancing, fixed team colors (`generate_primary_color` / `generate_secondary_color`), faceoff position lookup. Home team (0): Penguins Vegas Gold primary + black secondary. Away team (1): Leafs Blue primary + white secondary. |
+| `domain/rules/player_rules.gd` | Team balancing, fixed team colors (`generate_primary_color` for UI badges; `generate_jersey_color` / `generate_helmet_color` / `generate_pants_color` for skater meshes), faceoff position lookup. Home team (0): Penguins Vegas Gold primary + black secondary. Away team (1): Leafs Blue primary + white secondary. |
 | `domain/rules/infraction_rules.gd` | `is_offside`, `check_icing` |
 | `domain/rules/puck_collision_rules.gd` | Deflection reflection, body-check/body-block velocity, poke-strip direction, `can_poke_check` eligibility |
 | `domain/rules/skater_movement_rules.gd` | Thrust scaling, friction, max-speed clamp with puck-carry penalty, pulse-dash impulse |
@@ -108,6 +108,7 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 | `networking/buffered_skater_state.gd` | Timestamped SkaterNetworkState for interpolation buffer |
 | `networking/buffered_puck_state.gd` | Timestamped PuckNetworkState for interpolation buffer |
 | `networking/buffered_goalie_state.gd` | Timestamped GoalieNetworkState for interpolation buffer |
+| `networking/buffered_state_interpolator.gd` | Shared bracket-search + stale-trim helpers used by the three interpolating controllers. |
 | `networking/goalie_network_state.gd` | Serializable goalie state: position, rotation, state enum, five_hole_openness |
 | `networking/skater_network_state.gd` | Serializable skater state: position, velocity, facing, blade, top_hand, input sequence, is_ghost |
 | `networking/puck_network_state.gd` | Serializable puck state: position, velocity, carrier peer ID |
@@ -151,7 +152,9 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 
 ## Launch Modes
 
-All start paths go through `MainMenu.tscn`. `NetworkManager._ready()` does nothing — the menu calls `start_offline()`, `start_host()`, or `start_client(ip)` directly. These set up ENet but defer world spawning. `Hockey.tscn`'s root node runs `game_scene.gd`, whose `_ready()` calls `NetworkManager.on_game_scene_ready()`, which triggers `GameManager.on_host_started()` on the host side. Client world spawn is triggered by `_on_connected_to_server()` as before.
+All start paths go through `MainMenu.tscn`. `NetworkManager._ready()` does nothing — the menu calls `start_offline()`, `start_host()`, or `start_client(ip)` directly. These set up ENet but defer world spawning. `Hockey.tscn`'s root node runs `game_scene.gd`, whose `_ready()` calls `NetworkManager.on_game_scene_ready()`, which emits the `host_ready` signal on hosts (GameManager listens and calls `on_host_started`). Client world spawn is triggered by the `client_connected` signal from `_on_connected_to_server()`.
+
+NetworkManager → GameManager communication is signal-based: every RPC / ENet callback emits a typed signal, and GameManager wires all connections once in `_ready()` via `_wire_network_signals()`. The only downward data flow is `NetworkManager.set_world_state_provider(Callable)`, which GameManager uses to hand the world-state getter to the broadcast loop — matching the `puck.set_team_resolver` / `puck_controller.set_peer_id_resolver` pattern.
 
 ## Distribution
 

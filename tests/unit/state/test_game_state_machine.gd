@@ -85,24 +85,26 @@ func test_movement_unlocked_during_faceoff() -> void:
 
 # ── Player registry ──────────────────────────────────────────────────────────
 
-func test_host_registration_gets_slot_0() -> void:
+func test_host_registration_takes_team_slot_0() -> void:
 	var r: Dictionary = sm.register_host(1)
-	assert_eq(r.slot, 0)
-	assert_eq(r.team_id, 0)
+	assert_eq(r.team_slot, 0)
+	assert_true(r.team_id == 0 or r.team_id == 1)
 
-func test_first_connected_peer_gets_team_0_if_host_on_team_0() -> void:
-	# If host didn't register, the first connected peer gets team 0
-	var r: Dictionary = sm.on_player_connected(100)
-	assert_eq(r.slot, 1)
-	assert_eq(r.team_id, 0)
+func test_first_connected_peer_fills_opposite_team() -> void:
+	# After host claims one team, the first connected peer balances to the other.
+	var host: Dictionary = sm.register_host(1)
+	var peer: Dictionary = sm.on_player_connected(100)
+	assert_ne(peer.team_id, host.team_id, "second player should balance to the other team")
+	assert_eq(peer.team_slot, 0, "first slot on the newly-filled team")
 
-func test_second_connected_peer_balances_to_team_1() -> void:
-	sm.register_host(1)           # team 0
-	sm.on_player_connected(100)   # team 1
-	var r: Dictionary = sm.on_player_connected(200)
-	# host team 0, peer 100 team 1 → peer 200 should go team 0 (smaller)
-	assert_eq(r.team_id, 0)
-	assert_eq(r.slot, 2)
+func test_third_connection_leaves_teams_within_one_of_each_other() -> void:
+	sm.register_host(1)
+	sm.on_player_connected(100)
+	sm.on_player_connected(200)
+	# Third player lands on a tied matchup (1-1), so team is random; the balance
+	# invariant is that no team ever trails by more than one.
+	var diff: int = absi(sm.count_players_on_team(0) - sm.count_players_on_team(1))
+	assert_lte(diff, 1, "teams stay within 1 player of each other")
 
 func test_disconnected_player_removed() -> void:
 	sm.register_host(1)
@@ -146,8 +148,8 @@ func test_icing_not_triggered_from_attacking_half() -> void:
 # ── Hybrid icing race ────────────────────────────────────────────────────────
 
 func test_icing_waved_off_when_icing_team_closer() -> void:
-	sm.register_host(1)         # peer 1 → team 0
-	sm.on_player_connected(100) # peer 100 → team 1
+	sm.register_remote_assigned_player(1, 0, 0)   # peer 1 → team 0
+	sm.register_remote_assigned_player(100, 0, 1) # peer 100 → team 1
 	sm.notify_puck_carried(0, 5.0)
 	# Team 0 iced it: goal line at z = -26.6
 	# Peer 1 (team 0, icing team) at z = -25 → 1.6 units away
@@ -156,8 +158,8 @@ func test_icing_waved_off_when_icing_team_closer() -> void:
 	assert_eq(sm.icing_team_id, -1, "icing team closer → waved off")
 
 func test_icing_confirmed_when_defending_team_closer() -> void:
-	sm.register_host(1)         # peer 1 → team 0
-	sm.on_player_connected(100) # peer 100 → team 1
+	sm.register_remote_assigned_player(1, 0, 0)
+	sm.register_remote_assigned_player(100, 0, 1)
 	sm.notify_puck_carried(0, 5.0)
 	# Peer 1 (team 0, icing team) at z = 5 → 31.6 units from -26.6
 	# Peer 100 (team 1, defending) at z = -24 → 2.6 units from -26.6
@@ -165,8 +167,8 @@ func test_icing_confirmed_when_defending_team_closer() -> void:
 	assert_eq(sm.icing_team_id, 0, "defending team closer → icing confirmed")
 
 func test_icing_confirmed_when_defending_team_slightly_closer() -> void:
-	sm.register_host(1)
-	sm.on_player_connected(100)
+	sm.register_remote_assigned_player(1, 0, 0)
+	sm.register_remote_assigned_player(100, 0, 1)
 	sm.notify_puck_carried(0, 5.0)
 	# Peer 1 (team 0, icing) at z = -22 → 4.6 from goal line -26.6
 	# Peer 100 (team 1, defending) at z = -24 → 2.6 from goal line → closer
@@ -174,9 +176,9 @@ func test_icing_confirmed_when_defending_team_slightly_closer() -> void:
 	assert_eq(sm.icing_team_id, 0, "defending team slightly closer → icing confirmed")
 
 func test_icing_waved_off_team1_symmetric() -> void:
-	sm.register_host(1)         # team 0
-	sm.on_player_connected(100) # team 1
-	sm.on_player_connected(200) # team 0
+	sm.register_remote_assigned_player(1, 0, 0)   # team 0
+	sm.register_remote_assigned_player(100, 0, 1) # team 1
+	sm.register_remote_assigned_player(200, 1, 0) # team 0
 	sm.notify_puck_carried(1, -5.0)
 	# Team 1 iced toward +Z: goal line at z = +26.6
 	# Peer 100 (team 1, icing team) at z = 25 → 1.6 away
@@ -191,14 +193,14 @@ func test_ghost_empty_when_no_players() -> void:
 	assert_eq(ghosts.size(), 0)
 
 func test_offside_skater_ghosted_during_play() -> void:
-	sm.register_host(1)  # team 0
+	sm.register_remote_assigned_player(1, 0, 0)  # team 0
 	var ghosts: Dictionary = sm.compute_ghost_state(
 		{1: Vector3(0, 1, -10)},  # team 0 attacking zone
 		-1, Vector3(0, 0, 0))     # puck in neutral
 	assert_true(ghosts[1])
 
 func test_carrier_not_ghosted_by_offside() -> void:
-	sm.register_host(1)
+	sm.register_remote_assigned_player(1, 0, 0)
 	var ghosts: Dictionary = sm.compute_ghost_state(
 		{1: Vector3(0, 1, -10)},
 		1,                          # peer 1 is the carrier
@@ -206,7 +208,7 @@ func test_carrier_not_ghosted_by_offside() -> void:
 	assert_false(ghosts[1])
 
 func test_icing_team_all_ghosted() -> void:
-	sm.register_host(1)  # team 0
+	sm.register_remote_assigned_player(1, 0, 0)  # team 0
 	sm.notify_puck_carried(0, 5.0)
 	sm.check_icing_for_loose_puck(-30.0)
 	var ghosts: Dictionary = sm.compute_ghost_state(
@@ -215,7 +217,7 @@ func test_icing_team_all_ghosted() -> void:
 	assert_true(ghosts[1])
 
 func test_no_ghosts_during_dead_puck_phase() -> void:
-	sm.register_host(1)
+	sm.register_remote_assigned_player(1, 0, 0)
 	sm.on_goal_scored(1)  # → GOAL_SCORED
 	var ghosts: Dictionary = sm.compute_ghost_state(
 		{1: Vector3(0, 1, -10)},    # would be offside during play
@@ -261,12 +263,14 @@ func test_apply_remote_goal_sets_phase_and_scores() -> void:
 # ── Faceoff positions ───────────────────────────────────────────────────────
 
 func test_faceoff_positions_per_player_slot() -> void:
-	sm.register_host(1)          # slot 0
-	sm.on_player_connected(100)  # slot 1
+	var host_assignment: Dictionary = sm.register_host(1)
+	var peer_assignment: Dictionary = sm.on_player_connected(100)
 	var positions: Dictionary = sm.get_faceoff_positions()
 	assert_eq(positions.size(), 2)
-	assert_eq(positions[1], PlayerRules.faceoff_position_for_slot(0))
-	assert_eq(positions[100], PlayerRules.faceoff_position_for_slot(1))
+	assert_eq(positions[1],
+			PlayerRules.faceoff_position(host_assignment.team_id, host_assignment.team_slot))
+	assert_eq(positions[100],
+			PlayerRules.faceoff_position(peer_assignment.team_id, peer_assignment.team_slot))
 
 # ── Period / clock ───────────────────────────────────────────────────────────
 

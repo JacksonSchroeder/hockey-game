@@ -67,6 +67,11 @@ jobs:
           done
           echo "All archives look good."
 
+      - name: Move latest tag to HEAD
+        run: |
+          git tag -f latest
+          git push origin -f latest
+
       - name: Upload Release
         uses: ncipollo/release-action@v1
         with:

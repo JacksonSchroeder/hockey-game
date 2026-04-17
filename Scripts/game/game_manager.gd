@@ -5,7 +5,7 @@ extends Node
 # routing, signal emission.
 
 # ── Signals ───────────────────────────────────────────────────────────────────
-signal goal_scored(scoring_team: Team, scorer_name: String)
+signal goal_scored(scoring_team: Team, scorer_name: String, assist1_name: String, assist2_name: String)
 signal score_changed(score_0: int, score_1: int)
 signal phase_changed(new_phase: GamePhase.Phase)
 signal period_changed(new_period: int)
@@ -158,7 +158,7 @@ func on_player_disconnected(peer_id: int) -> void:
 	if not players.has(peer_id):
 		return
 	var record: PlayerRecord = players[peer_id]
-	player_left.emit(record.player_name, PlayerRules.generate_primary_color(record.team.team_id))
+	player_left.emit(record.display_name(), PlayerRules.generate_primary_color(record.team.team_id))
 	# Drop the puck before freeing the controller so puck_released fires while the
 	# record is still intact (puck_controller._on_puck_released checks players dict).
 	if NetworkManager.is_host and puck != null and puck.carrier == record.skater:
@@ -192,11 +192,11 @@ func spawn_remote_skater(peer_id: int, team_slot: int, team_id: int, jersey_colo
 	_spawn_remote_player(peer_id, team_slot, teams[team_id], jersey_color, helmet_color, pants_color, is_left_handed, player_name)
 
 # ── Goal Event (called on all peers via RPC) ─────────────────────────────────
-func on_goal_scored(scoring_team_id: int, score0: int, score1: int, scorer_name: String) -> void:
+func on_goal_scored(scoring_team_id: int, score0: int, score1: int, scorer_name: String, assist1_name: String, assist2_name: String) -> void:
 	_state_machine.apply_remote_goal(scoring_team_id, score0, score1)
 	var scoring_team: Team = teams[scoring_team_id]
 	puck.pickup_locked = true
-	goal_scored.emit(scoring_team, scorer_name)
+	goal_scored.emit(scoring_team, scorer_name, assist1_name, assist2_name)
 	var defended_goal: HockeyGoal = teams[1 - scoring_team_id].defended_goal
 	if defended_goal != null and defended_goal.vfx != null:
 		defended_goal.vfx.celebrate()
@@ -324,7 +324,7 @@ func _spawn_remote_player(peer_id: int, team_slot: int, team: Team, jersey_color
 		func(v: Skater, _f: float, _d: Vector3): _on_hit_landed(cpid_remote, v)
 	)
 	players[peer_id] = record
-	player_joined.emit(player_name, PlayerRules.generate_primary_color(team.team_id))
+	player_joined.emit(record.display_name(), PlayerRules.generate_primary_color(team.team_id))
 	NetworkManager.register_remote_controller(peer_id, spawned.controller)
 	if NetworkManager.is_host:
 		_sync_stats_to_clients()
@@ -377,11 +377,14 @@ func _on_goal_scored_into(defending_team: Team) -> void:
 	if scoring_team_id == -1:
 		return  # wrong phase, ignored
 	var scorer_name: String = ""
+	var scorer_id: int = -1
+	var assist1_name: String = ""
+	var assist2_name: String = ""
 	if NetworkManager.is_host:
 		var raw_scorer_id: int = carrier_peer_id if carrier_peer_id != -1 else _shooter_peer_id
 		var is_own_goal: bool = raw_scorer_id != -1 and players.has(raw_scorer_id) \
 				and players[raw_scorer_id].team.team_id == defending_team.team_id
-		var scorer_id: int = raw_scorer_id
+		scorer_id = raw_scorer_id
 		if is_own_goal:
 			scorer_id = -1
 			for pid: int in _recent_carriers:
@@ -390,21 +393,23 @@ func _on_goal_scored_into(defending_team: Team) -> void:
 					break
 		if scorer_id != -1 and players.has(scorer_id):
 			players[scorer_id].stats.goals += 1
-			_credit_assists(scorer_id)
+			var assist_names: Array[String] = _credit_assists(scorer_id)
+			assist1_name = assist_names[0] if assist_names.size() > 0 else ""
+			assist2_name = assist_names[1] if assist_names.size() > 1 else ""
 			if not is_own_goal:
 				_confirm_shot_on_goal(scorer_id)
-			var r: PlayerRecord = players[scorer_id]
-			scorer_name = r.player_name if not r.player_name.is_empty() else "P%d" % (r.team_slot + 1)
+			scorer_name = players[scorer_id].display_name()
 		_clear_pending_shot()
 		_sync_stats_to_clients()
 	puck.pickup_locked = true
 	if defending_team.defended_goal != null and defending_team.defended_goal.vfx != null:
 		defending_team.defended_goal.vfx.celebrate()
-	goal_scored.emit(teams[scoring_team_id], scorer_name)
+	goal_scored.emit(teams[scoring_team_id], scorer_name, assist1_name, assist2_name)
 	score_changed.emit(_state_machine.scores[0], _state_machine.scores[1])
 	phase_changed.emit(_state_machine.current_phase)
 	NetworkManager.notify_goal_to_all(
-			scoring_team_id, _state_machine.scores[0], _state_machine.scores[1], scorer_name)
+			scoring_team_id, _state_machine.scores[0], _state_machine.scores[1],
+			scorer_name, assist1_name, assist2_name)
 
 # ── Phase Entry (host, after tick transition) ─────────────────────────────────
 func _handle_phase_entered() -> void:
@@ -422,9 +427,11 @@ func _handle_phase_entered() -> void:
 		GamePhase.Phase.END_OF_PERIOD:
 			_drop_puck_if_carried()
 			puck.pickup_locked = true
+			clock_updated.emit(0.0)
 		GamePhase.Phase.GAME_OVER:
 			_drop_puck_if_carried()
 			puck.pickup_locked = true
+			clock_updated.emit(0.0)
 			game_over.emit()
 	phase_changed.emit(_state_machine.current_phase)
 
@@ -729,9 +736,9 @@ func _on_hit_landed(hitter_peer_id: int, _victim: Skater) -> void:
 	players[hitter_peer_id].stats.hits += 1
 	_sync_stats_to_clients()
 
-func _credit_assists(scorer_peer_id: int) -> void:
+func _credit_assists(scorer_peer_id: int) -> Array[String]:
 	var scorer_team_id: int = players[scorer_peer_id].team.team_id
-	var credited: int = 0
+	var names: Array[String] = []
 	for i: int in range(1, _recent_carriers.size()):
 		var pid: int = _recent_carriers[i]
 		if not players.has(pid):
@@ -739,9 +746,10 @@ func _credit_assists(scorer_peer_id: int) -> void:
 		if players[pid].team.team_id != scorer_team_id:
 			break
 		players[pid].stats.assists += 1
-		credited += 1
-		if credited >= 2:
+		names.append(players[pid].display_name())
+		if names.size() >= 2:
 			break
+	return names
 
 func _reset_stats() -> void:
 	_recent_carriers.clear()

@@ -7,6 +7,8 @@ var _home_score_label: Label
 var _away_score_label: Label
 var _phase_panel: PanelContainer
 var _phase_label: Label
+var _assist_label: Label
+var _phase_style: StyleBoxFlat
 var _elevation_panel: PanelContainer
 var _game_over_popup: CanvasLayer = null
 var _pause_menu: CanvasLayer = null
@@ -175,21 +177,30 @@ func _build_phase_banner() -> void:
 	centering.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(centering)
 
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.07, 0.07, 0.09, 0.88)
-	style.set_corner_radius_all(3)
-	style.set_content_margin(SIDE_LEFT, 20)
-	style.set_content_margin(SIDE_RIGHT, 20)
-	style.set_content_margin(SIDE_TOP, 8)
-	style.set_content_margin(SIDE_BOTTOM, 8)
+	_phase_style = StyleBoxFlat.new()
+	_phase_style.bg_color = Color(0.07, 0.07, 0.09, 0.88)
+	_phase_style.set_corner_radius_all(3)
+	_phase_style.set_content_margin(SIDE_LEFT, 20)
+	_phase_style.set_content_margin(SIDE_RIGHT, 20)
+	_phase_style.set_content_margin(SIDE_TOP, 8)
+	_phase_style.set_content_margin(SIDE_BOTTOM, 8)
 
 	_phase_panel = PanelContainer.new()
-	_phase_panel.add_theme_stylebox_override("panel", style)
+	_phase_panel.add_theme_stylebox_override("panel", _phase_style)
 	centering.add_child(_phase_panel)
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	_phase_panel.add_child(vbox)
 
 	_phase_label = _lbl("", 18, _GOLD)
 	_phase_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_phase_panel.add_child(_phase_label)
+	vbox.add_child(_phase_label)
+
+	_assist_label = _lbl("", 13, _DIM)
+	_assist_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_assist_label.visible = false
+	vbox.add_child(_assist_label)
 
 func _build_elevation_indicator() -> void:
 	var style := StyleBoxFlat.new()
@@ -215,11 +226,6 @@ func _build_elevation_indicator() -> void:
 	_elevation_panel.add_child(label)
 
 func _build_game_over_popup() -> void:
-	var overlay := ColorRect.new()
-	overlay.color = Color(0.0, 0.0, 0.0, 0.55)
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = _DARK_BG
 	panel_style.set_corner_radius_all(6)
@@ -227,9 +233,13 @@ func _build_game_over_popup() -> void:
 
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", panel_style)
-	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.anchor_left = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_top = 1.0
+	panel.anchor_bottom = 1.0
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	panel.offset_bottom = -20
 
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -257,10 +267,9 @@ func _build_game_over_popup() -> void:
 
 	var root := Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_child(overlay)
 	root.add_child(panel)
 
-	# Layer 5 keeps the popup above the game world but below the scoreboard (layer 10).
+	# Layer 5 — below scoreboard (layer 10); no overlap since panel sits at bottom.
 	_game_over_popup = CanvasLayer.new()
 	_game_over_popup.layer = 5
 	_game_over_popup.visible = false
@@ -310,7 +319,7 @@ func _build_pause_menu() -> void:
 	root.add_child(panel)
 
 	_pause_menu = CanvasLayer.new()
-	_pause_menu.layer = 5
+	_pause_menu.layer = 20
 	_pause_menu.visible = false
 	_pause_menu.add_child(root)
 	add_child(_pause_menu)
@@ -389,7 +398,7 @@ func _on_score_changed(score_0: int, score_1: int) -> void:
 	_home_score_label.text = str(score_0)
 	_away_score_label.text = str(score_1)
 
-func _on_goal_scored(scoring_team: Team, scorer_name: String) -> void:
+func _on_goal_scored(scoring_team: Team, scorer_name: String, assist1_name: String, assist2_name: String) -> void:
 	var score_label: Label = _away_score_label if scoring_team.team_id == 1 else _home_score_label
 	score_label.add_theme_color_override("font_color", _GOLD)
 	var tween := create_tween()
@@ -398,12 +407,24 @@ func _on_goal_scored(scoring_team: Team, scorer_name: String) -> void:
 		_GOLD, _WHITE, 1.5)
 	_phase_label.text = ("GOAL!  %s" % scorer_name) if not scorer_name.is_empty() else "GOAL!"
 	_phase_label.add_theme_color_override("font_color", _GOLD)
+	var team_color: Color = PlayerRules.generate_primary_color(scoring_team.team_id)
+	_phase_style.bg_color = Color(team_color.r * 0.25, team_color.g * 0.25, team_color.b * 0.25, 0.92)
+	if not assist1_name.is_empty():
+		var assist_text: String = assist1_name
+		if not assist2_name.is_empty():
+			assist_text += "  /  " + assist2_name
+		_assist_label.text = "Assisted by  " + assist_text
+		_assist_label.visible = true
+	else:
+		_assist_label.visible = false
 
 func _on_phase_changed(new_phase: int) -> void:
 	match new_phase:
 		GamePhase.Phase.PLAYING:
 			_phase_panel.visible = false
 			_phase_label.add_theme_color_override("font_color", _GOLD)
+			_phase_style.bg_color = Color(0.07, 0.07, 0.09, 0.88)
+			_assist_label.visible = false
 		GamePhase.Phase.GOAL_SCORED:
 			_phase_panel.visible = true  # text + color set by _on_goal_scored
 		GamePhase.Phase.END_OF_PERIOD:
@@ -415,6 +436,8 @@ func _on_phase_changed(new_phase: int) -> void:
 		_:
 			_phase_label.text = "FACEOFF"
 			_phase_label.add_theme_color_override("font_color", _GOLD)
+			_phase_style.bg_color = Color(0.07, 0.07, 0.09, 0.88)
+			_assist_label.visible = false
 			_phase_panel.visible = true
 
 func _on_period_changed(new_period: int) -> void:

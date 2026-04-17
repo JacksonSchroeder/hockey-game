@@ -17,7 +17,7 @@ signal local_puck_pickup_confirmed
 signal local_puck_stolen
 signal remote_puck_release_received(direction: Vector3, power: float)
 signal carrier_puck_dropped
-signal goal_received(scoring_team_id: int, score0: int, score1: int, scorer_name: String)
+signal goal_received(scoring_team_id: int, score0: int, score1: int, scorer_name: String, assist1_name: String, assist2_name: String)
 signal faceoff_positions_received(positions: Array)
 signal game_reset_received
 signal stats_received(data: Array)
@@ -253,9 +253,9 @@ func send_puck_release(direction: Vector3, power: float) -> void:
 func release_puck(direction: Vector3, power: float) -> void:
 	remote_puck_release_received.emit(direction, power)
 
-func notify_goal_to_all(scoring_team_id: int, score0: int, score1: int, scorer_name: String) -> void:
+func notify_goal_to_all(scoring_team_id: int, score0: int, score1: int, scorer_name: String, assist1_name: String, assist2_name: String) -> void:
 	for peer_id in multiplayer.get_peers():
-		notify_goal.rpc_id(peer_id, scoring_team_id, score0, score1, scorer_name)
+		notify_goal.rpc_id(peer_id, scoring_team_id, score0, score1, scorer_name, assist1_name, assist2_name)
 
 func notify_puck_dropped_to_carrier(carrier_peer_id: int) -> void:
 	notify_puck_dropped.rpc_id(carrier_peer_id)
@@ -269,8 +269,8 @@ func notify_player_disconnected(peer_id: int) -> void:
 	peer_disconnected.emit(peer_id)
 
 @rpc("authority", "reliable")
-func notify_goal(scoring_team_id: int, score0: int, score1: int, scorer_name: String) -> void:
-	goal_received.emit(scoring_team_id, score0, score1, scorer_name)
+func notify_goal(scoring_team_id: int, score0: int, score1: int, scorer_name: String, assist1_name: String, assist2_name: String) -> void:
+	goal_received.emit(scoring_team_id, score0, score1, scorer_name, assist1_name, assist2_name)
 
 func send_faceoff_positions(positions: Array) -> void:
 	for peer_id in multiplayer.get_peers():

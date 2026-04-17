@@ -19,3 +19,6 @@ func _init(p_peer_id: int, p_team_slot: int, p_is_local: bool, p_team: Team) -> 
 	team_slot = p_team_slot
 	is_local = p_is_local
 	team = p_team
+
+func display_name() -> String:
+	return player_name if not player_name.is_empty() else "P%d" % (team_slot + 1)

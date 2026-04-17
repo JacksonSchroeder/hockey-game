@@ -163,7 +163,7 @@ func _refresh() -> void:
 		_rows_container.add_child(row)
 		var s := record.stats
 		var pts := s.goals + s.assists
-		var display_name: String = record.player_name if not record.player_name.is_empty() else "P%d" % (record.team_slot + 1)
+		var display_name: String = record.display_name()
 		var name_color: Color = PlayerRules.slot_color(record.team.team_id, record.team_slot)
 		_fill_row(row,
 			[display_name, str(s.goals), str(s.assists), str(pts), str(s.shots_on_goal), str(s.hits)],

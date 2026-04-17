@@ -4,8 +4,10 @@ extends GutTest
 
 # ── assign_team ──────────────────────────────────────────────────────────────
 
-func test_first_player_assigned_to_team_0() -> void:
-	assert_eq(PlayerRules.assign_team(0, 0), 0, "tie goes to team 0")
+func test_tied_counts_pick_either_team() -> void:
+	# Tiebreak is randomised; verify only that a valid team id comes back.
+	var t: int = PlayerRules.assign_team(0, 0)
+	assert_true(t == 0 or t == 1, "tiebreak must return 0 or 1, got %d" % t)
 
 func test_smaller_team_gets_next_player() -> void:
 	assert_eq(PlayerRules.assign_team(1, 0), 1)

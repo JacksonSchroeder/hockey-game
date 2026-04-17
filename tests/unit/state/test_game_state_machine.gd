@@ -148,8 +148,8 @@ func test_icing_not_triggered_from_attacking_half() -> void:
 # ── Hybrid icing race ────────────────────────────────────────────────────────
 
 func test_icing_waved_off_when_icing_team_closer() -> void:
-	sm.register_host(1)         # peer 1 → team 0
-	sm.on_player_connected(100) # peer 100 → team 1
+	sm.register_remote_assigned_player(1, 0, 0)   # peer 1 → team 0
+	sm.register_remote_assigned_player(100, 0, 1) # peer 100 → team 1
 	sm.notify_puck_carried(0, 5.0)
 	# Team 0 iced it: goal line at z = -26.6
 	# Peer 1 (team 0, icing team) at z = -25 → 1.6 units away
@@ -158,8 +158,8 @@ func test_icing_waved_off_when_icing_team_closer() -> void:
 	assert_eq(sm.icing_team_id, -1, "icing team closer → waved off")
 
 func test_icing_confirmed_when_defending_team_closer() -> void:
-	sm.register_host(1)         # peer 1 → team 0
-	sm.on_player_connected(100) # peer 100 → team 1
+	sm.register_remote_assigned_player(1, 0, 0)
+	sm.register_remote_assigned_player(100, 0, 1)
 	sm.notify_puck_carried(0, 5.0)
 	# Peer 1 (team 0, icing team) at z = 5 → 31.6 units from -26.6
 	# Peer 100 (team 1, defending) at z = -24 → 2.6 units from -26.6
@@ -167,8 +167,8 @@ func test_icing_confirmed_when_defending_team_closer() -> void:
 	assert_eq(sm.icing_team_id, 0, "defending team closer → icing confirmed")
 
 func test_icing_confirmed_when_defending_team_slightly_closer() -> void:
-	sm.register_host(1)
-	sm.on_player_connected(100)
+	sm.register_remote_assigned_player(1, 0, 0)
+	sm.register_remote_assigned_player(100, 0, 1)
 	sm.notify_puck_carried(0, 5.0)
 	# Peer 1 (team 0, icing) at z = -22 → 4.6 from goal line -26.6
 	# Peer 100 (team 1, defending) at z = -24 → 2.6 from goal line → closer
@@ -176,9 +176,9 @@ func test_icing_confirmed_when_defending_team_slightly_closer() -> void:
 	assert_eq(sm.icing_team_id, 0, "defending team slightly closer → icing confirmed")
 
 func test_icing_waved_off_team1_symmetric() -> void:
-	sm.register_host(1)         # team 0
-	sm.on_player_connected(100) # team 1
-	sm.on_player_connected(200) # team 0
+	sm.register_remote_assigned_player(1, 0, 0)   # team 0
+	sm.register_remote_assigned_player(100, 0, 1) # team 1
+	sm.register_remote_assigned_player(200, 1, 0) # team 0
 	sm.notify_puck_carried(1, -5.0)
 	# Team 1 iced toward +Z: goal line at z = +26.6
 	# Peer 100 (team 1, icing team) at z = 25 → 1.6 away
@@ -193,14 +193,14 @@ func test_ghost_empty_when_no_players() -> void:
 	assert_eq(ghosts.size(), 0)
 
 func test_offside_skater_ghosted_during_play() -> void:
-	sm.register_host(1)  # team 0
+	sm.register_remote_assigned_player(1, 0, 0)  # team 0
 	var ghosts: Dictionary = sm.compute_ghost_state(
 		{1: Vector3(0, 1, -10)},  # team 0 attacking zone
 		-1, Vector3(0, 0, 0))     # puck in neutral
 	assert_true(ghosts[1])
 
 func test_carrier_not_ghosted_by_offside() -> void:
-	sm.register_host(1)
+	sm.register_remote_assigned_player(1, 0, 0)
 	var ghosts: Dictionary = sm.compute_ghost_state(
 		{1: Vector3(0, 1, -10)},
 		1,                          # peer 1 is the carrier
@@ -208,7 +208,7 @@ func test_carrier_not_ghosted_by_offside() -> void:
 	assert_false(ghosts[1])
 
 func test_icing_team_all_ghosted() -> void:
-	sm.register_host(1)  # team 0
+	sm.register_remote_assigned_player(1, 0, 0)  # team 0
 	sm.notify_puck_carried(0, 5.0)
 	sm.check_icing_for_loose_puck(-30.0)
 	var ghosts: Dictionary = sm.compute_ghost_state(
@@ -217,7 +217,7 @@ func test_icing_team_all_ghosted() -> void:
 	assert_true(ghosts[1])
 
 func test_no_ghosts_during_dead_puck_phase() -> void:
-	sm.register_host(1)
+	sm.register_remote_assigned_player(1, 0, 0)
 	sm.on_goal_scored(1)  # → GOAL_SCORED
 	var ghosts: Dictionary = sm.compute_ghost_state(
 		{1: Vector3(0, 1, -10)},    # would be offside during play

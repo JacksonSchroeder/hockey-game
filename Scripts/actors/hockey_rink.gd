@@ -10,7 +10,7 @@ extends StaticBody3D
 	set(v):
 		rink_width = v
 		_rebuild()
-@export var corner_radius: float = 8.5:
+@export var corner_radius: float = 8.53:
 	set(v):
 		corner_radius = v
 		_rebuild()
@@ -30,6 +30,18 @@ extends StaticBody3D
 	set(v):
 		wall_color = v
 		_rebuild()
+@export var kickplate_color: Color = Color(1.0, 0.824, 0.357):
+	set(v):
+		kickplate_color = v
+		_rebuild()
+@export var cap_rail_color: Color = Color(0.784, 0.063, 0.180):
+	set(v):
+		cap_rail_color = v
+		_rebuild()
+@export var kickplate_height: float = 0.20:
+	set(v):
+		kickplate_height = v
+		_rebuild()
 @export var glass_height: float = 1.1:
 	set(v):
 		glass_height = v
@@ -42,11 +54,11 @@ extends StaticBody3D
 	set(v):
 		ice_color = v
 		_rebuild()
-@export var red_line_color: Color = Color(0.72, 0.18, 0.18):
+@export var red_line_color: Color = Color(0.784, 0.063, 0.180):
 	set(v):
 		red_line_color = v
 		_rebuild()
-@export var blue_line_color: Color = Color(0.18, 0.18, 0.68):
+@export var blue_line_color: Color = Color(0.0, 0.220, 0.659):
 	set(v):
 		blue_line_color = v
 		_rebuild()
@@ -58,8 +70,12 @@ extends StaticBody3D
 	set(v):
 		_rebuild()
 
+# Kickplate protrudes this much inward from the board face toward the ice
+const KICKPLATE_PROTRUSION: float = 0.01
+const CAP_RAIL_HEIGHT: float = 0.05
+
 # Texture resolution: pixels per meter
-var _px_per_meter: float = 40.0
+var _px_per_meter: float = 80.0
 
 func _ready() -> void:
 	_rebuild()
@@ -96,10 +112,18 @@ func _rebuild() -> void:
 		Vector3(rink_width - 2.0 * r, wall_height, wall_thickness)
 	)
 	
-	_add_corner(Vector3(half_w - r, 0, -half_l + r), -PI / 2.0, 0.0)
-	_add_corner(Vector3(half_w - r, 0, half_l - r), 0.0, PI / 2.0)
-	_add_corner(Vector3(-half_w + r, 0, half_l - r), PI / 2.0, PI)
-	_add_corner(Vector3(-half_w + r, 0, -half_l + r), PI, 3.0 * PI / 2.0)
+	# Goal line Z: 3.35m from each end board — stripes painted on corner boards where the line meets them
+	var goal_z: float = half_l - 3.35
+	var corner_stripes: Array = [
+		{"z":  goal_z, "color": red_line_color},
+		{"z": -goal_z, "color": red_line_color},
+	]
+	_add_corner(Vector3(half_w - r, 0, -half_l + r), -PI / 2.0, 0.0, corner_stripes)
+	_add_corner(Vector3(half_w - r, 0, half_l - r), 0.0, PI / 2.0, corner_stripes)
+	_add_corner(Vector3(-half_w + r, 0, half_l - r), PI / 2.0, PI, corner_stripes)
+	_add_corner(Vector3(-half_w + r, 0, -half_l + r), PI, 3.0 * PI / 2.0, corner_stripes)
+
+	_add_side_board_stripes(half_w)
 
 func _add_ice(half_l: float) -> void:
 	var img_w = int(rink_width * _px_per_meter)
@@ -109,15 +133,14 @@ func _add_ice(half_l: float) -> void:
 	img.fill(ice_color)
 
 	# Goalie creases — drawn before lines so lines render on top
-	var crease_goal_z: int = int((half_l - 3.4) * _px_per_meter)
-	var crease_color: Color = Color(0.7, 0.85, 1.0)
+	var crease_goal_z: int = int((half_l - 3.35) * _px_per_meter)
+	var crease_color: Color = Color(0.392, 0.765, 0.922)  # Pantone 298
 	_draw_crease_fill(img, img_w / 2.0, img_h / 2.0 - crease_goal_z, 1, crease_color)
 	_draw_crease_fill(img, img_w / 2.0, img_h / 2.0 + crease_goal_z, -1, crease_color)
 
-	# Line widths in pixels
-	var thick_line = int(0.3 * _px_per_meter)  # 30cm for center/blue lines
-	var thin_line = int(0.15 * _px_per_meter)   # 15cm for goal lines, circles  # 5cm for goal lines, circles
-	thin_line = max(thin_line, 1)
+	# Line widths in pixels — thick (center/blue): 0.3m, thin (goal/circles): 0.05m
+	var thick_line: int = int(0.3 * _px_per_meter)
+	var thin_line: int  = max(int(0.05 * _px_per_meter), 2)
 	
 	# Helper: image coordinates
 	# X axis (rink width) = image X
@@ -127,13 +150,13 @@ func _add_ice(half_l: float) -> void:
 	# Center red line (at Z=0)
 	_draw_h_line(img, img_h / 2.0, thick_line, red_line_color)
 	
-	# Blue lines (NHL: 7.62m from center, which is 25ft)
-	var blue_z = int(7.62 * _px_per_meter)
+	# Blue lines (64 ft to near edge + half line width = 7.29m center on this rink)
+	var blue_z = int(7.29 * _px_per_meter)
 	_draw_h_line(img, img_h / 2.0 - blue_z, thick_line, blue_line_color)
 	_draw_h_line(img, img_h / 2.0 + blue_z, thick_line, blue_line_color)
 	
-	# Goal lines (3.4m from end boards)
-	var goal_z = int((half_l - 3.4) * _px_per_meter)
+	# Goal lines (3.35m from end boards)
+	var goal_z = int((half_l - 3.35) * _px_per_meter)
 	_draw_h_line(img, img_h / 2.0 - goal_z, thin_line, red_line_color)
 	_draw_h_line(img, img_h / 2.0 + goal_z, thin_line, red_line_color)
 
@@ -141,42 +164,39 @@ func _add_ice(half_l: float) -> void:
 	_draw_crease_arc(img, img_w / 2.0, img_h / 2.0 - goal_z, 1, thin_line, red_line_color)
 	_draw_crease_arc(img, img_w / 2.0, img_h / 2.0 + goal_z, -1, thin_line, red_line_color)
 
-	# Center ice circle (radius 4.5m)
-	_draw_circle(img, img_w / 2.0, img_h / 2.0, int(4.5 * _px_per_meter), thin_line, blue_line_color)
-	
-	# Center ice dot
-	_draw_filled_circle(img, img_w / 2.0, img_h / 2.0, int(0.15 * _px_per_meter), blue_line_color)
-	
-	# Faceoff dots and circles in end zones
-	# NHL: dots are 6.1m from goal line, 6.7m from center of rink (width)
-	var dot_offset_z = int(6.1 * _px_per_meter)
-	var dot_offset_x = int(6.7 * _px_per_meter)
-	var dot_radius = int(0.15 * _px_per_meter)
-	var circle_radius = int(4.5 * _px_per_meter)
-	
-	# End zone faceoff spots (4 total, 2 per end)
-	var end_zone_dots = [
-		[img_w / 2.0 - dot_offset_x, img_h / 2.0 - goal_z + dot_offset_z],
-		[img_w / 2.0 + dot_offset_x, img_h / 2.0 - goal_z + dot_offset_z],
-		[img_w / 2.0 - dot_offset_x, img_h / 2.0 + goal_z - dot_offset_z],
-		[img_w / 2.0 + dot_offset_x, img_h / 2.0 + goal_z - dot_offset_z],
+	# ── Faceoff markings ─────────────────────────────────────────────────────────
+	# All measurements from NHL Official Rules.
+	var dot_r:    float = 0.3048 * _px_per_meter  # 2' diameter filled dot
+	var circle_r: float = 4.572  * _px_per_meter  # 15' radius circle
+	var ez_off_x: float = 6.7056 * _px_per_meter  # 22' from center (width)
+	var ez_off_z: float = 6.096  * _px_per_meter  # 20' from goal line toward center
+	var nz_off_x: float = 6.7056 * _px_per_meter  # same X as end-zone dots
+	var nz_off_z: float = 1.524  * _px_per_meter  # 5' from near edge of blue line toward center
+
+	# Center ice circle + filled dot
+	_draw_circle(img, img_w / 2.0, img_h / 2.0, circle_r, thin_line, blue_line_color)
+	_draw_filled_circle(img, img_w / 2.0, img_h / 2.0, dot_r, blue_line_color)
+
+	# End-zone faceoff dots and circles
+	var ez_dots: Array = [
+		[img_w / 2.0 - ez_off_x, img_h / 2.0 - goal_z + ez_off_z],
+		[img_w / 2.0 + ez_off_x, img_h / 2.0 - goal_z + ez_off_z],
+		[img_w / 2.0 - ez_off_x, img_h / 2.0 + goal_z - ez_off_z],
+		[img_w / 2.0 + ez_off_x, img_h / 2.0 + goal_z - ez_off_z],
 	]
-	
-	for dot in end_zone_dots:
-		_draw_filled_circle(img, dot[0], dot[1], dot_radius, red_line_color)
-		_draw_circle(img, dot[0], dot[1], circle_radius, thin_line, red_line_color)
-	
-	# Neutral zone faceoff dots (4 total)
-	# NHL: just inside blue lines, same X offset
-	var neutral_dots = [
-		[img_w / 2.0 - dot_offset_x, img_h / 2.0 - blue_z + int(1.5 * _px_per_meter)],
-		[img_w / 2.0 + dot_offset_x, img_h / 2.0 - blue_z + int(1.5 * _px_per_meter)],
-		[img_w / 2.0 - dot_offset_x, img_h / 2.0 + blue_z - int(1.5 * _px_per_meter)],
-		[img_w / 2.0 + dot_offset_x, img_h / 2.0 + blue_z - int(1.5 * _px_per_meter)],
+	for dot: Array in ez_dots:
+		_draw_filled_circle(img, dot[0], dot[1], dot_r, red_line_color)
+		_draw_circle(img, dot[0], dot[1], circle_r, thin_line, red_line_color)
+
+	# Neutral-zone faceoff dots
+	var nz_dots: Array = [
+		[img_w / 2.0 - nz_off_x, img_h / 2.0 - blue_z + nz_off_z],
+		[img_w / 2.0 + nz_off_x, img_h / 2.0 - blue_z + nz_off_z],
+		[img_w / 2.0 - nz_off_x, img_h / 2.0 + blue_z - nz_off_z],
+		[img_w / 2.0 + nz_off_x, img_h / 2.0 + blue_z - nz_off_z],
 	]
-	
-	for dot in neutral_dots:
-		_draw_filled_circle(img, dot[0], dot[1], dot_radius, red_line_color)
+	for dot: Array in nz_dots:
+		_draw_filled_circle(img, dot[0], dot[1], dot_r, red_line_color)
 	
 	# Create texture
 	var tex = ImageTexture.create_from_image(img)
@@ -210,6 +230,13 @@ func _add_ice(half_l: float) -> void:
 	col.shape = shape
 	col.position = Vector3(0, -0.005, 0)
 	ice_body.add_child(col)
+
+func _draw_v_line(img: Image, x: float, thickness: int, color: Color) -> void:
+	var half_t: float = thickness / 2.0
+	for px in range(int(x - half_t), int(x + half_t) + 1):
+		if px >= 0 and px < img.get_width():
+			for py in range(img.get_height()):
+				img.set_pixel(px, py, color)
 
 func _draw_h_line(img: Image, y: int, thickness: int, color: Color) -> void:
 	var half_t = thickness / 2.0
@@ -286,6 +313,109 @@ func _draw_crease_arc(img: Image, cx: float, goal_y: float, toward_center: int, 
 			if dy <= straight_depth and abs(abs(dx) - half_w) <= half_t:
 				img.set_pixel(px, py, color)
 
+func _kickplate_z_segments(z_start: float, z_end: float) -> Array:
+	# Returns [[z0,z1], ...] covering [z_start, z_end] with gaps cut at stripe positions.
+	var half_lw: float = 0.15  # half of 0.30m line width
+	var cuts: Array = []
+	for sz: float in [0.0, 7.29, -7.29]:
+		var g0: float = sz - half_lw
+		var g1: float = sz + half_lw
+		if g1 > z_start and g0 < z_end:
+			cuts.append([maxf(g0, z_start), minf(g1, z_end)])
+	cuts.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	var segs: Array = []
+	var cur: float = z_start
+	for gap in cuts:
+		if gap[0] > cur + 0.001:
+			segs.append([cur, gap[0]])
+		cur = gap[1]
+	if cur < z_end - 0.001:
+		segs.append([cur, z_end])
+	return segs
+
+func _add_kickplate_rotated(kp_w: float, length: float, pos: Vector3, rot: float) -> void:
+	var mi := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(kp_w, kickplate_height, length)
+	mi.mesh = box
+	mi.position = pos
+	mi.rotation.y = rot
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = kickplate_color
+	mi.material_override = mat
+	add_child(mi)
+
+func _add_kickplate_box(kp_size: Vector3, kp_pos: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = kp_size
+	mi.mesh = box
+	mi.position = kp_pos
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = kickplate_color
+	mi.material_override = mat
+	add_child(mi)
+
+func _add_side_board_stripes(half_w: float) -> void:
+	# Paint center red line and blue zone lines as a texture on the inner board face,
+	# identical to how rink ice lines are drawn — no physical depth, no z-fighting.
+	var wall_len: float = rink_length - 2.0 * corner_radius
+	var img_w: int = maxi(int(wall_len * _px_per_meter), 1)
+	var img_h: int = maxi(int(wall_height * _px_per_meter), 1)
+
+	var img := Image.create(img_w, img_h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.0, 0.0, 0.0, 0.0))  # transparent — board color shows through
+
+	var thick_px: int = int(0.3 * _px_per_meter)
+	var cx: float = float(img_w) / 2.0
+	var bx: float = 7.29 * _px_per_meter
+	_draw_v_line(img, cx,        thick_px, red_line_color)
+	_draw_v_line(img, cx + bx,   thick_px, blue_line_color)
+	_draw_v_line(img, cx - bx,   thick_px, blue_line_color)
+
+	var tex := ImageTexture.create_from_image(img)
+
+	for side: float in [1.0, -1.0]:
+		# Place quad 1 mm inside the board inner face so it's never coplanar with the board.
+		var face_x: float = side * (half_w - wall_thickness / 2.0) - side * 0.001
+		var z0: float = -wall_len / 2.0
+		var z1: float =  wall_len / 2.0
+		var norm := Vector3(-side, 0.0, 0.0)
+
+		var verts   := PackedVector3Array([
+			Vector3(face_x, 0.0,          z0),
+			Vector3(face_x, 0.0,          z1),
+			Vector3(face_x, wall_height,  z1),
+			Vector3(face_x, wall_height,  z0),
+		])
+		var normals := PackedVector3Array([norm, norm, norm, norm])
+		var uvs     := PackedVector2Array([
+			Vector2(0.0, 1.0), Vector2(1.0, 1.0),
+			Vector2(1.0, 0.0), Vector2(0.0, 0.0),
+		])
+		var indices := PackedInt32Array([0, 1, 2, 0, 2, 3])
+
+		var arrays: Array = []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX]  = verts
+		arrays[Mesh.ARRAY_NORMAL]  = normals
+		arrays[Mesh.ARRAY_TEX_UV]  = uvs
+		arrays[Mesh.ARRAY_INDEX]   = indices
+
+		var mesh := ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		var mat := StandardMaterial3D.new()
+		mat.albedo_texture = tex
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.render_priority = 1
+		mi.material_override = mat
+		add_child(mi)
+
 func _make_glass_material() -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -297,12 +427,28 @@ func _make_glass_material() -> StandardMaterial3D:
 	return mat
 
 func _add_wall(pos: Vector3, size: Vector3) -> void:
-	# Board mesh (opaque, pos.y is already the board center)
+	# Kickplate (yellow, bottom strip) — protrudes KICKPLATE_PROTRUSION inward.
+	# Side walls are segmented to leave gaps at stripe positions.
+	if size.x <= size.z:  # side wall — thickness in X
+		var kp_x: float = pos.x - sign(pos.x) * KICKPLATE_PROTRUSION / 2.0
+		var kp_w: float = size.x + KICKPLATE_PROTRUSION
+		var z_start: float = pos.z - size.z / 2.0
+		var z_end: float   = pos.z + size.z / 2.0
+		for seg in _kickplate_z_segments(z_start, z_end):
+			_add_kickplate_box(Vector3(kp_w, kickplate_height, seg[1] - seg[0]),
+				Vector3(kp_x, kickplate_height / 2.0, (seg[0] + seg[1]) / 2.0))
+	else:  # end wall — thickness in Z, one solid piece (no stripes here)
+		var kp_z: float = pos.z - sign(pos.z) * KICKPLATE_PROTRUSION / 2.0
+		_add_kickplate_box(Vector3(size.x, kickplate_height, size.z + KICKPLATE_PROTRUSION),
+			Vector3(pos.x, kickplate_height / 2.0, kp_z))
+
+	# Upper board (white)
+	var board_h: float = size.y - kickplate_height
 	var board_mi := MeshInstance3D.new()
 	var board_box := BoxMesh.new()
-	board_box.size = size
+	board_box.size = Vector3(size.x, board_h, size.z)
 	board_mi.mesh = board_box
-	board_mi.position = pos
+	board_mi.position = Vector3(pos.x, kickplate_height + board_h / 2.0, pos.z)
 	var board_mat := StandardMaterial3D.new()
 	board_mat.albedo_color = wall_color
 	board_mi.material_override = board_mat
@@ -313,9 +459,20 @@ func _add_wall(pos: Vector3, size: Vector3) -> void:
 	var glass_box := BoxMesh.new()
 	glass_box.size = Vector3(size.x, glass_height, size.z)
 	glass_mi.mesh = glass_box
-	glass_mi.position = Vector3(pos.x, pos.y + (size.y + glass_height) / 2.0, pos.z)
+	glass_mi.position = Vector3(pos.x, size.y + glass_height / 2.0, pos.z)
 	glass_mi.material_override = _make_glass_material()
 	add_child(glass_mi)
+
+	# Cap rail (kickplate color, sits on top of glass)
+	var cap_mi := MeshInstance3D.new()
+	var cap_box := BoxMesh.new()
+	cap_box.size = Vector3(size.x, CAP_RAIL_HEIGHT, size.z)
+	cap_mi.mesh = cap_box
+	cap_mi.position = Vector3(pos.x, size.y + CAP_RAIL_HEIGHT / 2.0, pos.z)
+	var cap_mat := StandardMaterial3D.new()
+	cap_mat.albedo_color = cap_rail_color
+	cap_mi.material_override = cap_mat
+	add_child(cap_mi)
 
 	# Single collision covering the full board + glass height
 	var total_height := size.y + glass_height
@@ -326,7 +483,7 @@ func _add_wall(pos: Vector3, size: Vector3) -> void:
 	col.position = Vector3(pos.x, total_height / 2.0, pos.z)
 	add_child(col)
 
-func _add_corner(center: Vector3, angle_start: float, angle_end: float) -> void:
+func _add_corner(center: Vector3, angle_start: float, angle_end: float, stripe_zs: Array = []) -> void:
 	var angle_step := (angle_end - angle_start) / corner_segments
 	for i in corner_segments:
 		var a1 := angle_start + i * angle_step
@@ -340,12 +497,40 @@ func _add_corner(center: Vector3, angle_start: float, angle_end: float) -> void:
 		var dir := (p2 - p1).normalized()
 		var rot_y := atan2(dir.x, dir.z)
 
-		# Board mesh
+		# Kickplate — split at stripe positions to leave gaps, protrudes inward
+		var outward := (mid_xz - center).normalized()
+		var kp_x: float = mid_xz.x - outward.x * KICKPLATE_PROTRUSION / 2.0
+		var kp_z: float = mid_xz.z - outward.z * KICKPLATE_PROTRUSION / 2.0
+		var kp_w: float = wall_thickness + KICKPLATE_PROTRUSION
+		var crossing_t: float = -1.0
+		for stripe in stripe_zs:
+			var sz: float = stripe["z"]
+			if (p1.z <= sz and sz <= p2.z) or (p2.z <= sz and sz <= p1.z):
+				crossing_t = (sz - p1.z) / (p2.z - p1.z) if absf(p2.z - p1.z) > 0.001 else 0.5
+				break
+		if crossing_t < 0.0:
+			_add_kickplate_rotated(kp_w, seg_length, Vector3(kp_x, kickplate_height / 2.0, kp_z), rot_y)
+		else:
+			var half_gap: float = 0.025  # half of 0.05m goal line width
+			var local_cross: float = (crossing_t - 0.5) * seg_length
+			var len1: float = local_cross - half_gap + seg_length / 2.0
+			var len2: float = seg_length / 2.0 - local_cross - half_gap
+			if len1 > 0.001:
+				var c1: float = -seg_length / 2.0 + len1 / 2.0
+				_add_kickplate_rotated(kp_w, len1,
+					Vector3(kp_x + dir.x * c1, kickplate_height / 2.0, kp_z + dir.z * c1), rot_y)
+			if len2 > 0.001:
+				var c2: float = local_cross + half_gap + len2 / 2.0
+				_add_kickplate_rotated(kp_w, len2,
+					Vector3(kp_x + dir.x * c2, kickplate_height / 2.0, kp_z + dir.z * c2), rot_y)
+
+		# Upper board (white)
+		var board_h: float = wall_height - kickplate_height
 		var board_mi := MeshInstance3D.new()
 		var board_box := BoxMesh.new()
-		board_box.size = Vector3(wall_thickness, wall_height, seg_length)
+		board_box.size = Vector3(wall_thickness, board_h, seg_length)
 		board_mi.mesh = board_box
-		board_mi.position = Vector3(mid_xz.x, wall_height / 2.0, mid_xz.z)
+		board_mi.position = Vector3(mid_xz.x, kickplate_height + board_h / 2.0, mid_xz.z)
 		board_mi.rotation.y = rot_y
 		var board_mat := StandardMaterial3D.new()
 		board_mat.albedo_color = wall_color
@@ -361,6 +546,51 @@ func _add_corner(center: Vector3, angle_start: float, angle_end: float) -> void:
 		glass_mi.rotation.y = rot_y
 		glass_mi.material_override = _make_glass_material()
 		add_child(glass_mi)
+
+		# Cap rail (kickplate color, sits on top of glass)
+		var cap_mi := MeshInstance3D.new()
+		var cap_box := BoxMesh.new()
+		cap_box.size = Vector3(wall_thickness, CAP_RAIL_HEIGHT, seg_length)
+		cap_mi.mesh = cap_box
+		cap_mi.position = Vector3(mid_xz.x, wall_height + CAP_RAIL_HEIGHT / 2.0, mid_xz.z)
+		cap_mi.rotation.y = rot_y
+		var cap_mat := StandardMaterial3D.new()
+		cap_mat.albedo_color = kickplate_color
+		cap_mi.material_override = cap_mat
+		add_child(cap_mi)
+
+		# Goal line (or other) stripes — flat ArrayMesh quad on the inner face, no depth.
+		for stripe in stripe_zs:
+			var sz: float = stripe["z"]
+			if (p1.z <= sz and sz <= p2.z) or (p2.z <= sz and sz <= p1.z):
+				var t: float = (sz - p1.z) / (p2.z - p1.z) if absf(p2.z - p1.z) > 0.001 else 0.5
+				var hit := p1 + t * (p2 - p1)
+				# 1 mm inside the inner board face — never coplanar
+				var inward: float = wall_thickness / 2.0 + 0.001
+				var base := Vector3(hit.x - outward.x * inward, 0.0, hit.z - outward.z * inward)
+				var half_sw: float = 0.025  # half of 0.05m goal line width
+				var v0 := base + Vector3(-dir.x * half_sw, 0.0,         -dir.z * half_sw)
+				var v1 := base + Vector3( dir.x * half_sw, 0.0,          dir.z * half_sw)
+				var v2 := base + Vector3( dir.x * half_sw, wall_height,  dir.z * half_sw)
+				var v3 := base + Vector3(-dir.x * half_sw, wall_height, -dir.z * half_sw)
+				var norm_in := Vector3(-outward.x, 0.0, -outward.z)
+				var s_arrays: Array = []
+				s_arrays.resize(Mesh.ARRAY_MAX)
+				s_arrays[Mesh.ARRAY_VERTEX]  = PackedVector3Array([v0, v1, v2, v3])
+				s_arrays[Mesh.ARRAY_NORMAL]  = PackedVector3Array([norm_in, norm_in, norm_in, norm_in])
+				s_arrays[Mesh.ARRAY_TEX_UV]  = PackedVector2Array([Vector2(0,1), Vector2(1,1), Vector2(1,0), Vector2(0,0)])
+				s_arrays[Mesh.ARRAY_INDEX]   = PackedInt32Array([0, 1, 2, 0, 2, 3])
+				var s_mesh := ArrayMesh.new()
+				s_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, s_arrays)
+				var stripe_mi := MeshInstance3D.new()
+				stripe_mi.mesh = s_mesh
+				var stripe_mat := StandardMaterial3D.new()
+				stripe_mat.albedo_color = stripe["color"]
+				stripe_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				stripe_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+				stripe_mat.render_priority = 1
+				stripe_mi.material_override = stripe_mat
+				add_child(stripe_mi)
 
 		# Full-height collision
 		var total_height := wall_height + glass_height

@@ -6,9 +6,13 @@ class_name PlayerRules
 
 const MAX_PER_TEAM: int = 3
 
-# Returns team_id (0 or 1). Balances by count; ties go to team 0.
+# Returns team_id (0 or 1). Balances by count; ties are broken randomly.
 static func assign_team(team0_count: int, team1_count: int) -> int:
-	return 0 if team0_count <= team1_count else 1
+	if team0_count < team1_count:
+		return 0
+	if team1_count < team0_count:
+		return 1
+	return randi() % 2
 
 # Primary color: jersey, arms, blade. Fixed per team — all teammates match.
 #   Team 0 (home) = Pittsburgh Penguins Vegas Gold (#FFB81C)
@@ -26,6 +30,20 @@ static func generate_secondary_color(team_id: int) -> Color:
 		return Color(0.06, 0.06, 0.06)  # Penguins Black
 	return Color(1.00, 1.00, 1.00)      # Leafs White
 
-# Looks up the faceoff start position for a slot index.
-static func faceoff_position_for_slot(slot: int) -> Vector3:
-	return GameRules.CENTER_FACEOFF_POSITIONS[slot]
+# Looks up the faceoff start position for a team and within-team slot.
+static func faceoff_position(team_id: int, team_slot: int) -> Vector3:
+	return GameRules.CENTER_FACEOFF_POSITIONS[team_id][team_slot]
+
+# Returns a distinct identification color for a player by team and within-team slot.
+# Team 0 (home): cyan / violet / green. Team 1 (away): pink / yellow / orange.
+static func slot_color(team_id: int, team_slot: int) -> Color:
+	if team_id == 0:
+		match team_slot:
+			0: return Color(0.00, 0.90, 0.90)  # cyan
+			1: return Color(0.60, 0.10, 1.00)  # violet
+			_: return Color(0.10, 0.85, 0.20)  # green
+	else:
+		match team_slot:
+			0: return Color(1.00, 0.25, 0.60)  # pink
+			1: return Color(1.00, 0.90, 0.05)  # yellow
+			_: return Color(1.00, 0.50, 0.00)  # orange

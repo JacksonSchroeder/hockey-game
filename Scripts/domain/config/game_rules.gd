@@ -15,8 +15,8 @@ const NUM_PERIODS: int             = 3
 const END_OF_PERIOD_PAUSE: float   = 3.0           # pause before next-period faceoff prep
 
 # ── Rink Geometry ─────────────────────────────────────────────────────────────
-const GOAL_LINE_Z: float = 26.6  # rink_length / 2 - distance_from_end (30 - 3.4)
-const BLUE_LINE_Z: float = 7.62  # 25 ft from center ice (NHL standard)
+const GOAL_LINE_Z: float = 26.65  # rink_length / 2 - distance_from_end (30 - 3.35)
+const BLUE_LINE_Z: float = 7.29  # 64 ft from goal line to near edge + 0.15m to center
 const NET_HALF_WIDTH: float = 0.915       # half of goal opening — must match HockeyGoal post positions
 const NET_DEPTH: float = 1.02             # goal depth from goal line to back frame (BASE_P3.y)
 const NET_FLARE_HALF_WIDTH: float = 1.12  # widest point of net mesh at depth (BASE_P2.x)
@@ -25,7 +25,7 @@ const NET_FLARE_DEPTH: float = 0.92       # depth at which flare reaches maximum
 # Rink dimensions (must match HockeyRink export values in the scene)
 const RINK_HALF_WIDTH: float     = 13.0   # half of 26 m
 const RINK_HALF_LENGTH: float    = 30.0   # half of 60 m
-const CORNER_RADIUS: float       = 8.5
+const CORNER_RADIUS: float       = 8.53  # 28 ft
 const WALL_THICKNESS: float      = 0.3
 # Inner wall boundary — interior face of the boards
 const INNER_HALF_WIDTH: float    = RINK_HALF_WIDTH  - WALL_THICKNESS * 0.5  # 12.85
@@ -68,12 +68,8 @@ const ICING_GHOST_DURATION: float = 3.0  # seconds team stays ghosted after icin
 const MAX_PLAYERS: int = 6  # 3v3
 
 # ── Faceoff Positions ─────────────────────────────────────────────────────────
-# Indexed by slot. Even slots are Team 0 (+Z side), odd slots are Team 1 (-Z side).
-const CENTER_FACEOFF_POSITIONS: Array[Vector3] = [
-	Vector3( 0.0, 1.0,  1.5),  # slot 0 — Team 0 center
-	Vector3( 0.0, 1.0, -1.5),  # slot 1 — Team 1 center
-	Vector3(-5.0, 1.0,  3.0),  # slot 2 — Team 0 left wing
-	Vector3(-5.0, 1.0, -3.0),  # slot 3 — Team 1 left wing
-	Vector3( 5.0, 1.0,  3.0),  # slot 4 — Team 0 right wing
-	Vector3( 5.0, 1.0, -3.0),  # slot 5 — Team 1 right wing
+# Indexed by [team_id][team_slot]. Team 0 occupies the +Z half; Team 1 the -Z half.
+const CENTER_FACEOFF_POSITIONS: Array = [
+	[Vector3( 0.0, 1.0,  1.5), Vector3(-5.0, 1.0,  3.0), Vector3( 5.0, 1.0,  3.0)],  # team 0
+	[Vector3( 0.0, 1.0, -1.5), Vector3(-5.0, 1.0, -3.0), Vector3( 5.0, 1.0, -3.0)],  # team 1
 ]

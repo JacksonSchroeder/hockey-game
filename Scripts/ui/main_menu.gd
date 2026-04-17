@@ -35,6 +35,26 @@ func _build_ui() -> void:
 	spacer.custom_minimum_size = Vector2(0, 20)
 	vbox.add_child(spacer)
 
+	var name_row := HBoxContainer.new()
+	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	name_row.add_theme_constant_override("separation", 12)
+	vbox.add_child(name_row)
+
+	var name_label := Label.new()
+	name_label.text = "Name:"
+	name_label.add_theme_font_size_override("font_size", 20)
+	name_label.add_theme_color_override("font_color", Color.WHITE)
+	name_row.add_child(name_label)
+
+	var name_field := LineEdit.new()
+	name_field.placeholder_text = "Player"
+	name_field.max_length = 16
+	name_field.custom_minimum_size = Vector2(200, 48)
+	name_field.add_theme_font_size_override("font_size", 18)
+	name_field.text_changed.connect(func(t: String) -> void:
+		NetworkManager.local_player_name = t.strip_edges() if not t.strip_edges().is_empty() else "Player")
+	name_row.add_child(name_field)
+
 	var hand_row := HBoxContainer.new()
 	hand_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	hand_row.add_theme_constant_override("separation", 12)

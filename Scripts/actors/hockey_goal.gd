@@ -30,12 +30,14 @@ const NET_HEIGHT: float = 1.22        # 48 inches
 const POST_RADIUS: float = 0.03       # 2 3/8" OD = ~0.06m diameter
 const SEGMENTS: int = 16              # per half-curve; 33 total points (2*SEGMENTS + 1)
 
+var defending_team_id: int = -1  # set by GameManager when goals are assigned to teams
+
 # +1 for positive-Z end (Team 0 defends), -1 for negative-Z end (Team 1 defends)
 @export var facing: int = 1:
 	set(v):
 		facing = v
 		_rebuild()
-@export var distance_from_end: float = 3.4:
+@export var distance_from_end: float = 3.35:
 	set(v):
 		distance_from_end = v
 		_rebuild()
@@ -43,7 +45,7 @@ const SEGMENTS: int = 16              # per half-curve; 33 total points (2*SEGME
 	set(v):
 		rink_length = v
 		_rebuild()
-@export var post_color: Color = Color(0.9, 0.1, 0.1):
+@export var post_color: Color = Color(0.784, 0.063, 0.180):
 	set(v):
 		post_color = v
 		_rebuild()

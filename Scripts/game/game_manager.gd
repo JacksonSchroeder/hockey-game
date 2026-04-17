@@ -5,7 +5,7 @@ extends Node
 # routing, signal emission.
 
 # ── Signals ───────────────────────────────────────────────────────────────────
-signal goal_scored(scoring_team: Team)
+signal goal_scored(scoring_team: Team, scorer_name: String)
 signal score_changed(score_0: int, score_1: int)
 signal phase_changed(new_phase: GamePhase.Phase)
 signal period_changed(new_period: int)
@@ -39,7 +39,7 @@ var _shot_on_goal_counted: bool = false
 const SHOT_ON_GOAL_TIMEOUT: float = 5.0
 
 func _ready() -> void:
-	pass
+	randomize()
 
 # ── Process ───────────────────────────────────────────────────────────────────
 func _process(delta: float) -> void:
@@ -94,16 +94,16 @@ func on_host_started() -> void:
 	var assignment: Dictionary = _state_machine.register_host(1)
 	var team: Team = teams[assignment.team_id]
 	var colors: Dictionary = _generate_player_colors(team.team_id)
-	_spawn_local_player(1, assignment.slot, team, colors.primary, colors.secondary, NetworkManager.local_is_left_handed)
+	_spawn_local_player(1, assignment.team_slot, team, colors.primary, colors.secondary, NetworkManager.local_is_left_handed, NetworkManager.local_player_name)
 
 func on_connected_to_server() -> void:
 	pass
 
-func on_slot_assigned(slot: int, team_id: int, primary_color: Color, secondary_color: Color) -> void:
+func on_slot_assigned(team_slot: int, team_id: int, primary_color: Color, secondary_color: Color) -> void:
 	_spawn_world()
 	var peer_id: int = multiplayer.get_unique_id()
-	_state_machine.register_remote_assigned_player(peer_id, slot, team_id)
-	_spawn_local_player(peer_id, slot, teams[team_id], primary_color, secondary_color, NetworkManager.local_is_left_handed)
+	_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
+	_spawn_local_player(peer_id, team_slot, teams[team_id], primary_color, secondary_color, NetworkManager.local_is_left_handed, NetworkManager.local_player_name)
 
 func on_player_connected(peer_id: int) -> void:
 	if not NetworkManager.is_host:
@@ -112,18 +112,19 @@ func on_player_connected(peer_id: int) -> void:
 	var team: Team = teams[assignment.team_id]
 	var colors: Dictionary = _generate_player_colors(team.team_id)
 	var is_left: bool = NetworkManager.get_peer_handedness(peer_id)
+	var peer_name: String = NetworkManager.get_peer_name(peer_id)
 
-	NetworkManager.send_slot_assignment(peer_id, assignment.slot, team.team_id, colors.primary, colors.secondary)
+	NetworkManager.send_slot_assignment(peer_id, assignment.team_slot, team.team_id, colors.primary, colors.secondary)
 
 	var existing: Array = []
 	for existing_peer_id in players:
 		var r: PlayerRecord = players[existing_peer_id]
-		existing.append([existing_peer_id, r.slot, r.team.team_id, r.color, r.secondary_color, r.is_left_handed])
+		existing.append([existing_peer_id, r.team_slot, r.team.team_id, r.color, r.secondary_color, r.is_left_handed, r.player_name])
 	NetworkManager.send_sync_existing_players(peer_id, existing)
 
-	NetworkManager.send_spawn_remote_skater(peer_id, assignment.slot, team.team_id, colors.primary, colors.secondary, is_left)
+	NetworkManager.send_spawn_remote_skater(peer_id, assignment.team_slot, team.team_id, colors.primary, colors.secondary, is_left, peer_name)
 
-	_spawn_remote_player(peer_id, assignment.slot, team, colors.primary, colors.secondary, is_left)
+	_spawn_remote_player(peer_id, assignment.team_slot, team, colors.primary, colors.secondary, is_left, peer_name)
 
 func on_player_disconnected(peer_id: int) -> void:
 	if not players.has(peer_id):
@@ -145,26 +146,27 @@ func on_player_disconnected(peer_id: int) -> void:
 func sync_existing_players(player_data: Array) -> void:
 	for entry in player_data:
 		var peer_id: int = entry[0]
-		var slot: int = entry[1]
+		var team_slot: int = entry[1]
 		var team_id: int = entry[2]
 		var primary_color: Color = entry[3]
 		var secondary_color: Color = entry[4]
 		var is_left: bool = entry[5] if entry.size() > 5 else true
-		_state_machine.register_remote_assigned_player(peer_id, slot, team_id)
-		_spawn_remote_player(peer_id, slot, teams[team_id], primary_color, secondary_color, is_left)
+		var p_name: String = entry[6] if entry.size() > 6 else "Player"
+		_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
+		_spawn_remote_player(peer_id, team_slot, teams[team_id], primary_color, secondary_color, is_left, p_name)
 
-func spawn_remote_skater(peer_id: int, slot: int, team_id: int, primary_color: Color, secondary_color: Color, is_left_handed: bool) -> void:
+func spawn_remote_skater(peer_id: int, team_slot: int, team_id: int, primary_color: Color, secondary_color: Color, is_left_handed: bool, player_name: String) -> void:
 	if peer_id == multiplayer.get_unique_id():
 		return
-	_state_machine.register_remote_assigned_player(peer_id, slot, team_id)
-	_spawn_remote_player(peer_id, slot, teams[team_id], primary_color, secondary_color, is_left_handed)
+	_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
+	_spawn_remote_player(peer_id, team_slot, teams[team_id], primary_color, secondary_color, is_left_handed, player_name)
 
 # ── Goal Event (called on all peers via RPC) ─────────────────────────────────
-func on_goal_scored(scoring_team_id: int, score0: int, score1: int) -> void:
+func on_goal_scored(scoring_team_id: int, score0: int, score1: int, scorer_name: String) -> void:
 	_state_machine.apply_remote_goal(scoring_team_id, score0, score1)
 	var scoring_team: Team = teams[scoring_team_id]
 	puck.pickup_locked = true
-	goal_scored.emit(scoring_team)
+	goal_scored.emit(scoring_team, scorer_name)
 	var defended_goal: HockeyGoal = teams[1 - scoring_team_id].defended_goal
 	if defended_goal != null and defended_goal.vfx != null:
 		defended_goal.vfx.celebrate()
@@ -213,6 +215,7 @@ func _assign_goals_to_teams() -> void:
 		# facing=-1 → negative-Z end → Team 1 defends it
 		var defending_team_id: int = 0 if goal.facing == 1 else 1
 		teams[defending_team_id].defended_goal = goal
+		goal.defending_team_id = defending_team_id
 
 func _connect_goal_signals() -> void:
 	for team: Team in teams:
@@ -239,16 +242,18 @@ func _spawn_goalies() -> void:
 	teams[1].goalie_controller = result.top_controller
 	teams[0].goalie_controller = result.bottom_controller
 
-func _spawn_local_player(peer_id: int, slot: int, team: Team, primary_color: Color, secondary_color: Color, is_left_handed: bool) -> void:
-	var record := PlayerRecord.new(peer_id, slot, true, team)
+func _spawn_local_player(peer_id: int, team_slot: int, team: Team, primary_color: Color, secondary_color: Color, is_left_handed: bool, player_name: String) -> void:
+	var record := PlayerRecord.new(peer_id, team_slot, true, team)
 	record.color = primary_color
 	record.secondary_color = secondary_color
 	record.is_left_handed = is_left_handed
-	var faceoff_pos: Vector3 = PlayerRules.faceoff_position_for_slot(slot)
+	record.player_name = player_name
+	var faceoff_pos: Vector3 = PlayerRules.faceoff_position(team.team_id, team_slot)
 	record.faceoff_position = faceoff_pos
 	var spawned: Dictionary = _spawner.spawn_local_player(faceoff_pos, primary_color, secondary_color, is_left_handed, puck, self, team.team_id)
 	record.skater = spawned.skater
 	record.controller = spawned.controller
+	spawned.skater.set_ring_color(PlayerRules.slot_color(team.team_id, team_slot))
 	spawned.controller.set_goal_context(teams[0].defended_goal, teams[1].defended_goal, _resolve_skater_team_id)
 	spawned.controller.puck_release_requested.connect(_on_puck_release_requested)
 	spawned.controller.one_timer_release_requested.connect(
@@ -261,16 +266,18 @@ func _spawn_local_player(peer_id: int, slot: int, team: Team, primary_color: Col
 	NetworkManager.register_local_controller(spawned.controller)
 	stats_updated.emit()
 
-func _spawn_remote_player(peer_id: int, slot: int, team: Team, primary_color: Color, secondary_color: Color, is_left_handed: bool) -> void:
-	var record := PlayerRecord.new(peer_id, slot, false, team)
+func _spawn_remote_player(peer_id: int, team_slot: int, team: Team, primary_color: Color, secondary_color: Color, is_left_handed: bool, player_name: String) -> void:
+	var record := PlayerRecord.new(peer_id, team_slot, false, team)
 	record.color = primary_color
 	record.secondary_color = secondary_color
 	record.is_left_handed = is_left_handed
-	var faceoff_pos: Vector3 = PlayerRules.faceoff_position_for_slot(slot)
+	record.player_name = player_name
+	var faceoff_pos: Vector3 = PlayerRules.faceoff_position(team.team_id, team_slot)
 	record.faceoff_position = faceoff_pos
 	var spawned: Dictionary = _spawner.spawn_remote_player(faceoff_pos, primary_color, secondary_color, is_left_handed, puck, self)
 	record.skater = spawned.skater
 	record.controller = spawned.controller
+	spawned.skater.set_ring_color(PlayerRules.slot_color(team.team_id, team_slot))
 	spawned.controller.one_timer_release_requested.connect(
 			_on_one_timer_release_requested.bind(spawned.skater))
 	var cpid_remote := peer_id
@@ -329,6 +336,7 @@ func _on_goal_scored_into(defending_team: Team) -> void:
 	var scoring_team_id: int = _state_machine.on_goal_scored(defending_team.team_id)
 	if scoring_team_id == -1:
 		return  # wrong phase, ignored
+	var scorer_name: String = ""
 	if NetworkManager.is_host:
 		var raw_scorer_id: int = carrier_peer_id if carrier_peer_id != -1 else _shooter_peer_id
 		var is_own_goal: bool = raw_scorer_id != -1 and players.has(raw_scorer_id) \
@@ -345,16 +353,18 @@ func _on_goal_scored_into(defending_team: Team) -> void:
 			_credit_assists(scorer_id)
 			if not is_own_goal:
 				_confirm_shot_on_goal(scorer_id)
+			var r: PlayerRecord = players[scorer_id]
+			scorer_name = r.player_name if not r.player_name.is_empty() else "P%d" % (r.team_slot + 1)
 		_clear_pending_shot()
 		_sync_stats_to_clients()
 	puck.pickup_locked = true
 	if defending_team.defended_goal != null and defending_team.defended_goal.vfx != null:
 		defending_team.defended_goal.vfx.celebrate()
-	goal_scored.emit(teams[scoring_team_id])
+	goal_scored.emit(teams[scoring_team_id], scorer_name)
 	score_changed.emit(_state_machine.scores[0], _state_machine.scores[1])
 	phase_changed.emit(_state_machine.current_phase)
 	NetworkManager.notify_goal_to_all(
-			scoring_team_id, _state_machine.scores[0], _state_machine.scores[1])
+			scoring_team_id, _state_machine.scores[0], _state_machine.scores[1], scorer_name)
 
 # ── Phase Entry (host, after tick transition) ─────────────────────────────────
 func _handle_phase_entered() -> void:
@@ -386,7 +396,7 @@ func _enter_faceoff_prep() -> void:
 	var positions: Array = []
 	for peer_id: int in players:
 		var record: PlayerRecord = players[peer_id]
-		var pos: Vector3 = PlayerRules.faceoff_position_for_slot(record.slot)
+		var pos: Vector3 = PlayerRules.faceoff_position(record.team.team_id, record.team_slot)
 		record.faceoff_position = pos
 		record.controller.teleport_to(pos)
 		positions.append_array([peer_id, pos.x, pos.y, pos.z])
@@ -514,6 +524,8 @@ func _apply_game_state(state: Array, offset: int) -> void:
 			score0, score1, new_phase, period, t_remaining)
 	if phase_changed_this_tick:
 		puck.pickup_locked = PhaseRules.is_dead_puck_phase(new_phase)
+		if new_phase == GamePhase.Phase.GAME_OVER:
+			game_over.emit()
 		phase_changed.emit(new_phase)
 	period_changed.emit(period)
 	clock_updated.emit(t_remaining)

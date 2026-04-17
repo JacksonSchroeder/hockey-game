@@ -11,6 +11,8 @@ var _elevation_panel: PanelContainer
 var _home_sog_label: Label = null
 var _away_sog_label: Label = null
 var _local_skater: Skater = null
+var _score_0: int = 0
+var _score_1: int = 0
 
 const _DARK_BG    := Color(0.07, 0.07, 0.09, 0.92)
 const _WHITE      := Color(1.00, 1.00, 1.00, 1.00)
@@ -23,15 +25,13 @@ func _ready() -> void:
 	_build_phase_banner()
 	_build_elevation_indicator()
 	_build_version_tag()
-	_build_bug_report_button()
-	if NetworkManager.is_host:
-		_build_reset_button()
 	_period_label.text = _period_ordinal(1)
 	_clock_label.text = _format_clock(GameRules.PERIOD_DURATION)
 	_home_score_label.text = "0"
 	_away_score_label.text = "0"
 	_phase_panel.visible = false
 	GameManager.score_changed.connect(_on_score_changed)
+	GameManager.goal_scored.connect(_on_goal_scored)
 	GameManager.phase_changed.connect(_on_phase_changed)
 	GameManager.period_changed.connect(_on_period_changed)
 	GameManager.clock_updated.connect(_on_clock_updated)
@@ -208,65 +208,43 @@ func _build_version_tag() -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
 
-func _build_bug_report_button() -> void:
-	var btn := Button.new()
-	btn.text = "Report Bug"
-	btn.add_theme_font_size_override("font_size", 12)
-	btn.anchor_left = 1.0
-	btn.anchor_right = 1.0
-	btn.anchor_top = 1.0
-	btn.anchor_bottom = 1.0
-	btn.offset_left = -96.0
-	btn.offset_right = -8.0
-	btn.offset_top = -48.0
-	btn.offset_bottom = -24.0
-	btn.pressed.connect(_on_bug_report_pressed)
-	add_child(btn)
-
-func _on_bug_report_pressed() -> void:
-	var title: String = "[bug] v%s %s - " % [BuildInfo.VERSION, OS.get_name()]
-	var body: String = "Version: v%s\nOS: %s\n\nWhat happened:\n\n\nSteps to reproduce:\n1. \n2. \n3. \n" % [BuildInfo.VERSION, OS.get_name()]
-	var url: String = "https://github.com/%s/issues/new?title=%s&body=%s" % [BuildInfo.REPO, title.uri_encode(), body.uri_encode()]
-	OS.shell_open(url)
-
-func _build_reset_button() -> void:
-	var btn := Button.new()
-	btn.text = "Reset"
-	btn.add_theme_font_size_override("font_size", 14)
-	btn.anchor_left = 1.0
-	btn.anchor_right = 1.0
-	btn.anchor_top = 0.0
-	btn.anchor_bottom = 0.0
-	btn.offset_left = -88.0
-	btn.offset_right = -16.0
-	btn.offset_top = 16.0
-	btn.offset_bottom = 48.0
-	btn.pressed.connect(GameManager.reset_game)
-	add_child(btn)
 
 # ---------------------------------------------------------------------------
 # Signal handlers
 # ---------------------------------------------------------------------------
 
 func _on_score_changed(score_0: int, score_1: int) -> void:
+	_score_0 = score_0
+	_score_1 = score_1
 	_home_score_label.text = str(score_0)
 	_away_score_label.text = str(score_1)
+
+func _on_goal_scored(scoring_team: Team, scorer_name: String) -> void:
+	var score_label: Label = _away_score_label if scoring_team.team_id == 1 else _home_score_label
+	score_label.add_theme_color_override("font_color", _GOLD)
+	var tween := create_tween()
+	tween.tween_method(
+		func(c: Color) -> void: score_label.add_theme_color_override("font_color", c),
+		_GOLD, _WHITE, 1.5)
+	_phase_label.text = ("GOAL!  %s" % scorer_name) if not scorer_name.is_empty() else "GOAL!"
+	_phase_label.add_theme_color_override("font_color", _GOLD)
 
 func _on_phase_changed(new_phase: int) -> void:
 	match new_phase:
 		GamePhase.Phase.PLAYING:
 			_phase_panel.visible = false
+			_phase_label.add_theme_color_override("font_color", _GOLD)
 		GamePhase.Phase.GOAL_SCORED:
-			_phase_label.text = "GOAL!"
-			_phase_panel.visible = true
+			_phase_panel.visible = true  # text + color set by _on_goal_scored
 		GamePhase.Phase.END_OF_PERIOD:
 			_phase_label.text = "END OF PERIOD"
+			_phase_label.add_theme_color_override("font_color", _GOLD)
 			_phase_panel.visible = true
 		GamePhase.Phase.GAME_OVER:
-			_phase_label.text = "GAME OVER"
-			_phase_panel.visible = true
+			_phase_panel.visible = true  # text + color set by _on_game_over
 		_:
 			_phase_label.text = "FACEOFF"
+			_phase_label.add_theme_color_override("font_color", _GOLD)
 			_phase_panel.visible = true
 
 func _on_period_changed(new_period: int) -> void:
@@ -274,9 +252,18 @@ func _on_period_changed(new_period: int) -> void:
 
 func _on_clock_updated(t: float) -> void:
 	_clock_label.text = _format_clock(t)
+	_clock_label.add_theme_color_override("font_color", _GOLD if t <= 30.0 and t > 0.0 else _WHITE)
 
 func _on_game_over() -> void:
-	_phase_label.text = "GAME OVER"
+	if _score_0 > _score_1:
+		_phase_label.text = "HOME WINS"
+		_phase_label.add_theme_color_override("font_color", _GOLD)
+	elif _score_1 > _score_0:
+		_phase_label.text = "AWAY WINS"
+		_phase_label.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
+	else:
+		_phase_label.text = "TIE"
+		_phase_label.add_theme_color_override("font_color", _WHITE)
 	_phase_panel.visible = true
 
 func _on_shots_on_goal_changed(sog_0: int, sog_1: int) -> void:

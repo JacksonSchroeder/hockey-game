@@ -4,9 +4,11 @@ extends Node
 var is_host: bool = false
 var game_initiated: bool = false
 var local_is_left_handed: bool = true
+var local_player_name: String = "Player"
 var _local_controller: LocalController = null
 var _remote_controllers: Dictionary = {}  # peer_id -> RemoteController
 var _peer_handedness: Dictionary = {}     # peer_id -> bool (host only)
+var _peer_names: Dictionary = {}          # peer_id -> String (host only)
 
 # ── Timers ────────────────────────────────────────────────────────────────────
 var _input_timer: float = 0.0
@@ -24,12 +26,14 @@ func start_offline() -> void:
 	is_host = true
 	game_initiated = true
 	_peer_handedness[1] = local_is_left_handed
+	_peer_names[1] = local_player_name
 	print("Offline mode")
 
 func start_host() -> void:
 	is_host = true
 	game_initiated = true
 	_peer_handedness[1] = local_is_left_handed
+	_peer_names[1] = local_player_name
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_server(Constants.PORT, GameRules.MAX_PLAYERS)
 	if error != OK:
@@ -72,6 +76,7 @@ func _on_peer_connected(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	print("Player disconnected: ", id)
 	_peer_handedness.erase(id)
+	_peer_names.erase(id)
 	GameManager.on_player_disconnected(id)
 	# Notify all remaining clients so they remove the stale skater.
 	for peer_id in multiplayer.get_peers():
@@ -80,7 +85,7 @@ func _on_peer_disconnected(id: int) -> void:
 func _on_connected_to_server() -> void:
 	_connect_timer = -1.0
 	print("Connected! My ID: ", multiplayer.get_unique_id())
-	request_join.rpc_id(1, local_is_left_handed)
+	request_join.rpc_id(1, local_is_left_handed, local_player_name)
 	GameManager.on_connected_to_server()
 
 func _on_connection_failed() -> void:
@@ -138,13 +143,17 @@ func _broadcast_state() -> void:
 
 # ── RPCs ──────────────────────────────────────────────────────────────────────
 @rpc("any_peer", "reliable")
-func request_join(is_left_handed: bool) -> void:
+func request_join(is_left_handed: bool, player_name: String) -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
 	_peer_handedness[sender_id] = is_left_handed
+	_peer_names[sender_id] = player_name.strip_edges().left(16)
 	GameManager.on_player_connected(sender_id)
 
 func get_peer_handedness(peer_id: int) -> bool:
 	return _peer_handedness.get(peer_id, true)
+
+func get_peer_name(peer_id: int) -> String:
+	return _peer_names.get(peer_id, "Player")
 
 @rpc("any_peer", "unreliable_ordered")
 func receive_input(data: Array) -> void:
@@ -162,12 +171,12 @@ func receive_world_state(state: Array) -> void:
 	GameManager.apply_world_state(state)
 
 @rpc("authority", "reliable")
-func assign_player_slot(slot: int, team_id: int, primary_color: Color, secondary_color: Color) -> void:
-	GameManager.on_slot_assigned(slot, team_id, primary_color, secondary_color)
+func assign_player_slot(team_slot: int, team_id: int, primary_color: Color, secondary_color: Color) -> void:
+	GameManager.on_slot_assigned(team_slot, team_id, primary_color, secondary_color)
 
 @rpc("authority", "reliable")
-func spawn_remote_skater(peer_id: int, slot: int, team_id: int, primary_color: Color, secondary_color: Color, is_left_handed: bool) -> void:
-	GameManager.spawn_remote_skater(peer_id, slot, team_id, primary_color, secondary_color, is_left_handed)
+func spawn_remote_skater(peer_id: int, team_slot: int, team_id: int, primary_color: Color, secondary_color: Color, is_left_handed: bool, player_name: String) -> void:
+	GameManager.spawn_remote_skater(peer_id, team_slot, team_id, primary_color, secondary_color, is_left_handed, player_name)
 
 @rpc("authority", "reliable")
 func sync_existing_players(player_data: Array) -> void:
@@ -194,9 +203,9 @@ func send_puck_release(direction: Vector3, power: float) -> void:
 func release_puck(direction: Vector3, power: float) -> void:
 	GameManager.on_remote_puck_release(direction, power)
 
-func notify_goal_to_all(scoring_team_id: int, score0: int, score1: int) -> void:
+func notify_goal_to_all(scoring_team_id: int, score0: int, score1: int, scorer_name: String) -> void:
 	for peer_id in multiplayer.get_peers():
-		notify_goal.rpc_id(peer_id, scoring_team_id, score0, score1)
+		notify_goal.rpc_id(peer_id, scoring_team_id, score0, score1, scorer_name)
 
 func notify_puck_dropped_to_carrier(carrier_peer_id: int) -> void:
 	notify_puck_dropped.rpc_id(carrier_peer_id)
@@ -210,8 +219,8 @@ func notify_player_disconnected(peer_id: int) -> void:
 	GameManager.on_player_disconnected(peer_id)
 
 @rpc("authority", "reliable")
-func notify_goal(scoring_team_id: int, score0: int, score1: int) -> void:
-	GameManager.on_goal_scored(scoring_team_id, score0, score1)
+func notify_goal(scoring_team_id: int, score0: int, score1: int, scorer_name: String) -> void:
+	GameManager.on_goal_scored(scoring_team_id, score0, score1, scorer_name)
 
 func send_faceoff_positions(positions: Array) -> void:
 	for peer_id in multiplayer.get_peers():
@@ -238,11 +247,11 @@ func receive_stats(data: Array) -> void:
 	GameManager.apply_stats(data)
 
 # ── Sending ───────────────────────────────────────────────────────────────────
-func send_slot_assignment(peer_id: int, slot: int, team_id: int, primary_color: Color, secondary_color: Color) -> void:
-	assign_player_slot.rpc_id(peer_id, slot, team_id, primary_color, secondary_color)
+func send_slot_assignment(peer_id: int, team_slot: int, team_id: int, primary_color: Color, secondary_color: Color) -> void:
+	assign_player_slot.rpc_id(peer_id, team_slot, team_id, primary_color, secondary_color)
 
-func send_spawn_remote_skater(peer_id: int, slot: int, team_id: int, primary_color: Color, secondary_color: Color, is_left_handed: bool) -> void:
-	spawn_remote_skater.rpc(peer_id, slot, team_id, primary_color, secondary_color, is_left_handed)
+func send_spawn_remote_skater(peer_id: int, team_slot: int, team_id: int, primary_color: Color, secondary_color: Color, is_left_handed: bool, player_name: String) -> void:
+	spawn_remote_skater.rpc(peer_id, team_slot, team_id, primary_color, secondary_color, is_left_handed, player_name)
 
 func send_sync_existing_players(peer_id: int, player_data: Array) -> void:
 	sync_existing_players.rpc_id(peer_id, player_data)

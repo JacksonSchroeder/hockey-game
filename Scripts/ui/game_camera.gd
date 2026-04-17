@@ -28,8 +28,8 @@ extends Camera3D
 @export var smooth_speed: float = 3.0
 
 # ── Goal Context (set via set_goal_context) ───────────────────────────────────
-var _goal_0: Node3D = null  # Team 0's defended goal
-var _goal_1: Node3D = null  # Team 1's defended goal
+var _goal_0: HockeyGoal = null  # Team 0's defended goal
+var _goal_1: HockeyGoal = null  # Team 1's defended goal
 var _carrier_team_resolver: Callable  # Skater → int team_id
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ var _current_height: float = 15.0
 var _smoothed_attack_dir: float = 0.0    # lerps between -1, 0, +1 on possession change
 var _smoothed_direction_factor: float = 1.0  # lerps movement-direction bias to avoid snapping
 
-func set_goal_context(goal_0: Node3D, goal_1: Node3D, carrier_team_resolver: Callable) -> void:
+func set_goal_context(goal_0: HockeyGoal, goal_1: HockeyGoal, carrier_team_resolver: Callable) -> void:
 	_goal_0 = goal_0
 	_goal_1 = goal_1
 	_carrier_team_resolver = carrier_team_resolver
@@ -50,14 +50,10 @@ func _get_attacking_direction() -> int:
 	if carrier == null:
 		return 0
 	var carrier_team: int = _carrier_team_resolver.call(carrier)
-	var attacking_goal: Node3D = null
-	if carrier_team == 0:
-		attacking_goal = _goal_1
-	elif carrier_team == 1:
-		attacking_goal = _goal_0
+	var attacking_goal: HockeyGoal = _goal_1 if carrier_team == 0 else _goal_0
 	if attacking_goal == null:
 		return 0
-	return 1 if attacking_goal.global_position.z > 0.0 else -1
+	return 1 if attacking_goal.defending_team_id == 0 else -1
 
 func _ready() -> void:
 	make_current()

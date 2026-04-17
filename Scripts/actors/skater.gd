@@ -322,14 +322,18 @@ func set_player_color(primary_color: Color, secondary_color: Color, is_local: bo
 	var stick_mat := StandardMaterial3D.new()
 	stick_mat.albedo_color = Color(0.705, 0.640, 0.605)
 	stick_mesh.material_override = stick_mat
-	if _ring_mesh != null:
-		_ring_mesh.visible = is_local
-	# Ring indicator — primary color with subtle emission so it reads on the ice
-	if _ring_mesh != null and is_local:
-		var ring_mat := StandardMaterial3D.new()
-		ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		ring_mat.albedo_color = Color(0.5, 0.5, 0.5, 0.5)
-		_ring_mesh.material_override = ring_mat
+
+func set_ring_color(color: Color) -> void:
+	if _ring_mesh == null:
+		return
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.55)
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 0.3
+	_ring_mesh.material_override = mat
+	_ring_mesh.visible = true
 
 # ── Blade ─────────────────────────────────────────────────────────────────────
 func set_blade_position(pos: Vector3) -> void:

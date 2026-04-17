@@ -57,10 +57,6 @@ func _build_panel() -> void:
 	vbox.add_theme_constant_override("separation", 8)
 	panel.add_child(vbox)
 
-	var title := _lbl("SCOREBOARD", 20, _WHITE)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
-
 	vbox.add_child(_hsep())
 	_build_period_summary(vbox)
 	vbox.add_child(_hsep())
@@ -77,12 +73,25 @@ func _build_panel() -> void:
 
 	vbox.add_child(_hsep())
 
+	var footer_row := HBoxContainer.new()
+	footer_row.add_theme_constant_override("separation", 4)
+	vbox.add_child(footer_row)
+
+	if NetworkManager.is_host:
+		var reset_btn := _icon_button("res://Assets/Icons/restart_alt.svg")
+		reset_btn.pressed.connect(GameManager.reset_game)
+		footer_row.add_child(reset_btn)
+
 	var footer := _lbl("TAB to toggle", 11, _DIM)
 	footer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(footer)
+	footer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	footer_row.add_child(footer)
+
+	var bug_btn := _icon_button("res://Assets/Icons/bug_report.svg")
+	bug_btn.pressed.connect(_on_bug_report_pressed)
+	footer_row.add_child(bug_btn)
 
 func _build_period_summary(vbox: VBoxContainer) -> void:
-	var col_label: int = 64
 	var col_num: int = 32
 
 	var grid := GridContainer.new()
@@ -91,9 +100,7 @@ func _build_period_summary(vbox: VBoxContainer) -> void:
 	grid.add_theme_constant_override("v_separation", 5)
 
 	# Header row: blank | 1 | 2 | 3 | T
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(col_label, 0)
-	grid.add_child(spacer)
+	grid.add_child(Control.new())  # spacer — width driven by badge below
 	for header: String in ["1", "2", "3", "T"]:
 		var h := _lbl(header, 12, _HEADER)
 		h.custom_minimum_size = Vector2(col_num, 0)
@@ -103,7 +110,7 @@ func _build_period_summary(vbox: VBoxContainer) -> void:
 	# Away row (team 1) then home row (team 0) — same convention as scorebug
 	for team_id: int in [1, 0]:
 		var label: String = "AWAY" if team_id == 1 else "HOME"
-		grid.add_child(_team_badge(label, PlayerRules.generate_primary_color(team_id), col_label))
+		grid.add_child(_team_badge(label, PlayerRules.generate_primary_color(team_id)))
 		var row_labels: Array[Label] = []
 		for _i: int in 4:
 			var l := _lbl("0", 13, _WHITE)
@@ -144,7 +151,7 @@ func _refresh() -> void:
 	sorted.sort_custom(func(a: PlayerRecord, b: PlayerRecord) -> bool:
 		if a.team.team_id != b.team.team_id:
 			return a.team.team_id > b.team.team_id  # team 1 (away) first
-		return a.slot < b.slot
+		return a.team_slot < b.team_slot
 	)
 
 	var last_team_id: int = -1
@@ -156,9 +163,11 @@ func _refresh() -> void:
 		_rows_container.add_child(row)
 		var s := record.stats
 		var pts := s.goals + s.assists
+		var display_name: String = record.player_name if not record.player_name.is_empty() else "P%d" % (record.team_slot + 1)
+		var name_color: Color = PlayerRules.slot_color(record.team.team_id, record.team_slot)
 		_fill_row(row,
-			["P%d" % (record.slot + 1), str(s.goals), str(s.assists), str(pts), str(s.shots_on_goal), str(s.hits)],
-			record.color, false
+			[display_name, str(s.goals), str(s.assists), str(pts), str(s.shots_on_goal), str(s.hits)],
+			name_color, false
 		)
 
 func _make_team_header(team_id: int) -> PanelContainer:
@@ -197,7 +206,7 @@ func _fill_row(row: HBoxContainer, texts: Array, name_color: Color, is_header: b
 		cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if i == 0 else HORIZONTAL_ALIGNMENT_CENTER
 		row.add_child(cell)
 
-func _team_badge(text: String, color: Color, min_width: int) -> PanelContainer:
+func _team_badge(text: String, color: Color) -> PanelContainer:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
 	style.set_corner_radius_all(3)
@@ -207,12 +216,26 @@ func _team_badge(text: String, color: Color, min_width: int) -> PanelContainer:
 	style.set_content_margin(SIDE_BOTTOM, 3)
 	var badge := PanelContainer.new()
 	badge.add_theme_stylebox_override("panel", style)
-	badge.custom_minimum_size = Vector2(min_width, 0)
 	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var lum: float = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b
 	var text_color: Color = Color(0.06, 0.06, 0.06) if lum > 0.4 else _WHITE
-	badge.add_child(_lbl(text, 11, text_color))
+	var lbl := _lbl(text, 11, text_color)
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge.add_child(lbl)
 	return badge
+
+func _on_bug_report_pressed() -> void:
+	var title: String = "[bug] v%s %s - " % [BuildInfo.VERSION, OS.get_name()]
+	var body: String = "Version: v%s\nOS: %s\n\nWhat happened:\n\nSteps to reproduce:\n1. \n2. \n3. \n" % [BuildInfo.VERSION, OS.get_name()]
+	var url: String = "https://github.com/%s/issues/new?title=%s&body=%s" % [BuildInfo.REPO, title.uri_encode(), body.uri_encode()]
+	OS.shell_open(url)
+
+func _icon_button(icon_path: String) -> Button:
+	var btn := Button.new()
+	btn.icon = load(icon_path)
+	btn.flat = true
+	btn.add_theme_color_override("icon_normal_color", _DIM)
+	return btn
 
 func _hsep() -> HSeparator:
 	var sep := HSeparator.new()

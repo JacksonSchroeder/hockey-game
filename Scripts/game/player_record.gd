@@ -1,7 +1,8 @@
 class_name PlayerRecord
 
 var peer_id: int = 0
-var slot: int = 0
+var team_slot: int = 0  # within-team index: 0, 1, or 2
+var player_name: String = ""
 var skater: Skater = null
 var controller: SkaterController = null
 var is_local: bool = false
@@ -12,8 +13,8 @@ var secondary_color: Color = Color.BLACK
 var is_left_handed: bool = true
 var stats: PlayerStats = PlayerStats.new()
 
-func _init(p_peer_id: int, p_slot: int, p_is_local: bool, p_team: Team) -> void:
+func _init(p_peer_id: int, p_team_slot: int, p_is_local: bool, p_team: Team) -> void:
 	peer_id = p_peer_id
-	slot = p_slot
+	team_slot = p_team_slot
 	is_local = p_is_local
 	team = p_team

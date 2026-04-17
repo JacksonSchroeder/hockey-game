@@ -33,7 +33,7 @@ var period_scores: Array = [[0, 0, 0], [0, 0, 0]]  # [team_id][period_index 0-ba
 # ── Player registry (domain view) ────────────────────────────────────────────
 # peer_id → { slot: int, team_id: int, faceoff_position: Vector3 }
 var players: Dictionary = {}
-var next_slot: int = 1  # host takes slot 0 up front
+var _next_team_slots: Array[int] = [0, 0]  # next available team_slot per team
 
 # ── Icing ────────────────────────────────────────────────────────────────────
 var last_carrier_team_id: int = -1
@@ -149,39 +149,37 @@ func compute_ghost_state(
 
 # ── Player registry ──────────────────────────────────────────────────────────
 
-# Call once at host startup to assign slot 0.
-# Returns { slot: int, team_id: int }.
+# Call once at host startup. Returns { team_slot: int, team_id: int }.
 func register_host(peer_id: int) -> Dictionary:
-	var team_id: int = PlayerRules.assign_team(
-			count_players_on_team(0), count_players_on_team(1))
+	var team_id: int = PlayerRules.assign_team(0, 0)
+	var team_slot: int = _next_team_slots[team_id]
+	_next_team_slots[team_id] += 1
 	players[peer_id] = {
-		"slot": 0,
+		"team_slot": team_slot,
 		"team_id": team_id,
-		"faceoff_position": PlayerRules.faceoff_position_for_slot(0),
+		"faceoff_position": PlayerRules.faceoff_position(team_id, team_slot),
 	}
-	return {"slot": 0, "team_id": team_id}
+	return {"team_slot": team_slot, "team_id": team_id}
 
-# Call for each non-host peer that connects.
-# Returns { slot: int, team_id: int }.
+# Call for each non-host peer that connects. Returns { team_slot: int, team_id: int }.
 func on_player_connected(peer_id: int) -> Dictionary:
-	var slot: int = next_slot
-	next_slot += 1
 	var team_id: int = PlayerRules.assign_team(
 			count_players_on_team(0), count_players_on_team(1))
+	var team_slot: int = _next_team_slots[team_id]
+	_next_team_slots[team_id] += 1
 	players[peer_id] = {
-		"slot": slot,
+		"team_slot": team_slot,
 		"team_id": team_id,
-		"faceoff_position": PlayerRules.faceoff_position_for_slot(slot),
+		"faceoff_position": PlayerRules.faceoff_position(team_id, team_slot),
 	}
-	return {"slot": slot, "team_id": team_id}
+	return {"team_slot": team_slot, "team_id": team_id}
 
-# Called by remote clients when they receive a slot assignment RPC. Takes a
-# pre-assigned slot+team_id rather than computing them.
-func register_remote_assigned_player(peer_id: int, slot: int, team_id: int) -> void:
+# Called by remote clients when they receive a slot assignment RPC.
+func register_remote_assigned_player(peer_id: int, team_slot: int, team_id: int) -> void:
 	players[peer_id] = {
-		"slot": slot,
+		"team_slot": team_slot,
 		"team_id": team_id,
-		"faceoff_position": PlayerRules.faceoff_position_for_slot(slot),
+		"faceoff_position": PlayerRules.faceoff_position(team_id, team_slot),
 	}
 
 func on_player_disconnected(peer_id: int) -> void:

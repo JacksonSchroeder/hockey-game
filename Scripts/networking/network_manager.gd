@@ -67,7 +67,7 @@ func start_offline() -> void:
 	game_initiated = true
 	_peer_handedness[1] = local_is_left_handed
 	_peer_names[1] = local_player_name
-	print("Offline mode")
+
 
 func start_host() -> void:
 	is_host = true
@@ -80,7 +80,6 @@ func start_host() -> void:
 		push_error("Failed to start server: " + str(error))
 		return
 	multiplayer.multiplayer_peer = peer
-	print("Server started on port ", Constants.PORT)
 
 func start_client(ip: String) -> void:
 	is_host = false
@@ -92,7 +91,6 @@ func start_client(ip: String) -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	_connect_timer = 0.0
-	print("Connecting to ", ip, ":", Constants.PORT)
 
 func on_game_scene_ready() -> void:
 	if is_host:
@@ -105,11 +103,9 @@ func _on_peer_connected(id: int) -> void:
 	var enet_peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
 	if enet_peer:
 		enet_peer.get_peer(id).set_timeout(0, 10000, 60000)
-	print("Player connected: ", id)
 	# Spawn happens when the client sends request_join — not here.
 
 func _on_peer_disconnected(id: int) -> void:
-	print("Player disconnected: ", id)
 	_peer_handedness.erase(id)
 	_peer_names.erase(id)
 	peer_disconnected.emit(id)
@@ -119,7 +115,6 @@ func _on_peer_disconnected(id: int) -> void:
 
 func _on_connected_to_server() -> void:
 	_connect_timer = -1.0
-	print("Connected! My ID: ", multiplayer.get_unique_id())
 	request_join.rpc_id(1, local_is_left_handed, local_player_name)
 	client_connected.emit()
 
@@ -130,7 +125,6 @@ func _on_connection_failed() -> void:
 	get_tree().change_scene_to_file(Constants.SCENE_MAIN_MENU)
 
 func _on_server_disconnected() -> void:
-	print("[NM] _on_server_disconnected fired on client")
 	push_error("Server disconnected")
 	pending_error = "Lost connection to server."
 	disconnected_from_server.emit()
@@ -228,7 +222,7 @@ func receive_input(data: Array) -> void:
 	if _remote_controllers.has(sender_id):
 		_remote_controllers[sender_id].receive_input(state)
 	else:
-		print("no remote controller for: ", sender_id)
+		push_warning("no remote controller for peer %d" % sender_id)
 
 @rpc("authority", "unreliable_ordered")
 func receive_world_state(state: Array) -> void:
@@ -360,7 +354,6 @@ signal join_in_progress(config: Dictionary)
 @rpc("authority", "reliable")
 func notify_join_in_progress(p_num_periods: int, p_period_duration: float,
 		p_ot_enabled: bool, p_ot_duration: float) -> void:
-	print("[NM] notify_join_in_progress received — periods=%d dur=%.0f" % [p_num_periods, p_period_duration])
 	join_in_progress.emit({
 		"num_periods": p_num_periods,
 		"period_duration": p_period_duration,

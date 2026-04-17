@@ -268,7 +268,7 @@ func _build_game_over_popup() -> void:
 		rematch_btn.pressed.connect(func() -> void: GameManager.reset_game())
 		vbox.add_child(rematch_btn)
 
-	var menu_btn := _popup_button("Main Menu")
+	var menu_btn := _popup_button("Disconnect")
 	menu_btn.pressed.connect(func() -> void:
 		GameManager.on_scene_exit()
 		NetworkManager.reset()
@@ -327,7 +327,7 @@ func _build_game_menu() -> void:
 	bug_btn.pressed.connect(_on_bug_report_pressed)
 	vbox.add_child(bug_btn)
 
-	var quit_btn := _popup_button("Quit to Menu")
+	var quit_btn := _popup_button("Disconnect")
 	quit_btn.pressed.connect(func() -> void:
 		GameManager.on_scene_exit()
 		NetworkManager.reset()

@@ -141,16 +141,12 @@ func on_connected_to_server() -> void:
 	pass
 
 func on_slot_assigned(team_slot: int, team_id: int, jersey_color: Color, helmet_color: Color, pants_color: Color) -> void:
-	if not NetworkManager.is_host:
-		print("[GM] on_slot_assigned team=%d slot=%d — spawning world" % [team_id, team_slot])
 	_spawn_world()
 	var peer_id: int = multiplayer.get_unique_id()
 	_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
 	_spawn_local_player(peer_id, team_slot, teams[team_id], jersey_color, helmet_color, pants_color, NetworkManager.local_is_left_handed, NetworkManager.local_player_name)
 
 func on_player_connected(peer_id: int) -> void:
-	if not NetworkManager.is_host:
-		print("[GM] on_player_connected peer=%d is_host=%s state_machine=%s" % [peer_id, str(NetworkManager.is_host), str(_state_machine != null)])
 	if not NetworkManager.is_host or _state_machine == null:
 		return
 	var assignment: Dictionary = _state_machine.on_player_connected(peer_id)
@@ -165,8 +161,6 @@ func on_player_connected(peer_id: int) -> void:
 		"ot_enabled": _state_machine.ot_enabled,
 		"ot_duration": _state_machine.ot_duration,
 	}
-	if NetworkManager.is_host:
-		print("[GM] sending join_in_progress + slot_assignment to peer=%d (team=%d slot=%d)" % [peer_id, team.team_id, assignment.team_slot])
 	NetworkManager.send_join_in_progress(peer_id, config)
 	NetworkManager.send_slot_assignment(peer_id, assignment.team_slot, team.team_id, colors.jersey, colors.helmet, colors.pants)
 
@@ -216,8 +210,6 @@ func sync_existing_players(player_data: Array) -> void:
 		_spawn_remote_player(peer_id, team_slot, teams[team_id], jersey_color, helmet_color, pants_color, is_left, p_name)
 
 func spawn_remote_skater(peer_id: int, team_slot: int, team_id: int, jersey_color: Color, helmet_color: Color, pants_color: Color, is_left_handed: bool, player_name: String) -> void:
-	if not NetworkManager.is_host:
-		print("[GM] spawn_remote_skater peer=%d team=%d slot=%d state_machine=%s" % [peer_id, team_id, team_slot, str(_state_machine != null)])
 	if peer_id == multiplayer.get_unique_id() or _state_machine == null:
 		return
 	_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
@@ -253,8 +245,6 @@ func on_faceoff_positions(positions: Array) -> void:
 
 # ── World Spawn ───────────────────────────────────────────────────────────────
 func _spawn_world() -> void:
-	if not NetworkManager.is_host:
-		print("[GM] _spawn_world start — scene=%s" % get_tree().current_scene.scene_file_path)
 	_state_machine = GameStateMachine.new()
 	if not NetworkManager.pending_game_config.is_empty():
 		var cfg: Dictionary = NetworkManager.pending_game_config

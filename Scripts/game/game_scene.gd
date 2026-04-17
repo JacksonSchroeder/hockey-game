@@ -1,7 +1,6 @@
 extends Node
 
 func _ready() -> void:
-	print("[GS] game_scene _ready is_host=%s" % str(NetworkManager.is_host))
 	NetworkManager.on_game_scene_ready()
 	if not NetworkManager.is_host and not NetworkManager.pending_join_slot.is_empty():
 		var s: Dictionary = NetworkManager.pending_join_slot

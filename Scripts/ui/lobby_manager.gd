@@ -173,12 +173,11 @@ func _assign_slot(peer_id: int, team_id: int, slot: int, player_name: String, is
 		"is_left_handed": is_left_handed,
 	}
 
-func _find_balanced_slot(peer_id: int) -> Array:
+func _find_balanced_slot(_peer_id: int) -> Array:
 	var team0: int = 0
 	var team1: int = 0
 	for k: int in _lobby_slots:
-		var t: int = k / 3
-		if t == 0: team0 += 1
+		if k < PlayerRules.MAX_PER_TEAM: team0 += 1
 		else: team1 += 1
 	var preferred_team: int = 0 if team0 <= team1 else 1
 	for attempt_team: int in [preferred_team, 1 - preferred_team]:

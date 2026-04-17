@@ -121,15 +121,28 @@ func _apply_ghost_state() -> void:
 # ── Network Callbacks ─────────────────────────────────────────────────────────
 func on_host_started() -> void:
 	_spawn_world()
-	var assignment: Dictionary = _state_machine.register_host(1)
-	var team: Team = teams[assignment.team_id]
-	var colors: Dictionary = _generate_player_colors(team.team_id)
-	_spawn_local_player(1, assignment.team_slot, team, colors.jersey, colors.helmet, colors.pants, NetworkManager.local_is_left_handed, NetworkManager.local_player_name)
+	if not NetworkManager.pending_lobby_slots.is_empty():
+		var my_slot: Dictionary = NetworkManager.pending_lobby_slots.get(1, {})
+		var team_id: int = my_slot.get("team_id", 0)
+		var team_slot: int = my_slot.get("team_slot", 0)
+		_state_machine.register_remote_assigned_player(1, team_slot, team_id)
+		var team: Team = teams[team_id]
+		var colors: Dictionary = _generate_player_colors(team_id)
+		_spawn_local_player(1, team_slot, team, colors.jersey, colors.helmet, colors.pants,
+				NetworkManager.local_is_left_handed, NetworkManager.local_player_name)
+		_push_lobby_assignments_to_clients()
+	else:
+		var assignment: Dictionary = _state_machine.register_host(1)
+		var team: Team = teams[assignment.team_id]
+		var colors: Dictionary = _generate_player_colors(team.team_id)
+		_spawn_local_player(1, assignment.team_slot, team, colors.jersey, colors.helmet, colors.pants, NetworkManager.local_is_left_handed, NetworkManager.local_player_name)
 
 func on_connected_to_server() -> void:
 	pass
 
 func on_slot_assigned(team_slot: int, team_id: int, jersey_color: Color, helmet_color: Color, pants_color: Color) -> void:
+	if not NetworkManager.is_host:
+		print("[GM] on_slot_assigned team=%d slot=%d — spawning world" % [team_id, team_slot])
 	_spawn_world()
 	var peer_id: int = multiplayer.get_unique_id()
 	_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
@@ -137,6 +150,8 @@ func on_slot_assigned(team_slot: int, team_id: int, jersey_color: Color, helmet_
 
 func on_player_connected(peer_id: int) -> void:
 	if not NetworkManager.is_host:
+		print("[GM] on_player_connected peer=%d is_host=%s state_machine=%s" % [peer_id, str(NetworkManager.is_host), str(_state_machine != null)])
+	if not NetworkManager.is_host or _state_machine == null:
 		return
 	var assignment: Dictionary = _state_machine.on_player_connected(peer_id)
 	var team: Team = teams[assignment.team_id]
@@ -144,6 +159,15 @@ func on_player_connected(peer_id: int) -> void:
 	var is_left: bool = NetworkManager.get_peer_handedness(peer_id)
 	var peer_name: String = NetworkManager.get_peer_name(peer_id)
 
+	var config: Dictionary = {
+		"num_periods": _state_machine.num_periods,
+		"period_duration": _state_machine.period_duration,
+		"ot_enabled": _state_machine.ot_enabled,
+		"ot_duration": _state_machine.ot_duration,
+	}
+	if NetworkManager.is_host:
+		print("[GM] sending join_in_progress + slot_assignment to peer=%d (team=%d slot=%d)" % [peer_id, team.team_id, assignment.team_slot])
+	NetworkManager.send_join_in_progress(peer_id, config)
 	NetworkManager.send_slot_assignment(peer_id, assignment.team_slot, team.team_id, colors.jersey, colors.helmet, colors.pants)
 
 	var existing: Array[Array] = []
@@ -172,9 +196,13 @@ func on_player_disconnected(peer_id: int) -> void:
 	if record.controller:
 		record.controller.queue_free()
 	if record.skater:
+		if puck != null:
+			puck.remove_skater_cooldown(record.skater)
 		record.skater.queue_free()
 
 func sync_existing_players(player_data: Array) -> void:
+	if _state_machine == null:
+		return
 	for entry in player_data:
 		var peer_id: int = entry[0]
 		var team_slot: int = entry[1]
@@ -188,7 +216,9 @@ func sync_existing_players(player_data: Array) -> void:
 		_spawn_remote_player(peer_id, team_slot, teams[team_id], jersey_color, helmet_color, pants_color, is_left, p_name)
 
 func spawn_remote_skater(peer_id: int, team_slot: int, team_id: int, jersey_color: Color, helmet_color: Color, pants_color: Color, is_left_handed: bool, player_name: String) -> void:
-	if peer_id == multiplayer.get_unique_id():
+	if not NetworkManager.is_host:
+		print("[GM] spawn_remote_skater peer=%d team=%d slot=%d state_machine=%s" % [peer_id, team_id, team_slot, str(_state_machine != null)])
+	if peer_id == multiplayer.get_unique_id() or _state_machine == null:
 		return
 	_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
 	_spawn_remote_player(peer_id, team_slot, teams[team_id], jersey_color, helmet_color, pants_color, is_left_handed, player_name)
@@ -223,7 +253,13 @@ func on_faceoff_positions(positions: Array) -> void:
 
 # ── World Spawn ───────────────────────────────────────────────────────────────
 func _spawn_world() -> void:
+	if not NetworkManager.is_host:
+		print("[GM] _spawn_world start — scene=%s" % get_tree().current_scene.scene_file_path)
 	_state_machine = GameStateMachine.new()
+	if not NetworkManager.pending_game_config.is_empty():
+		var cfg: Dictionary = NetworkManager.pending_game_config
+		_state_machine.apply_config(cfg.num_periods, cfg.period_duration, cfg.ot_enabled, cfg.ot_duration)
+		NetworkManager.pending_game_config = {}
 	_spawner = ActorSpawner.new()
 	_spawner.setup(get_tree().current_scene)
 	_create_teams()
@@ -511,12 +547,42 @@ func _drop_puck_if_carried() -> int:
 	return carrier_peer_id
 
 # Shared reset logic applied on both host (reset_game) and client (on_game_reset).
+func _push_lobby_assignments_to_clients() -> void:
+	var slots: Dictionary = NetworkManager.pending_lobby_slots
+	var existing: Array[Array] = []
+	for peer_id: int in players:
+		var r: PlayerRecord = players[peer_id]
+		existing.append([peer_id, r.team_slot, r.team.team_id, r.jersey_color, r.helmet_color, r.pants_color, r.is_left_handed, r.player_name])
+	for peer_id: int in slots:
+		if peer_id == 1:
+			continue
+		var entry: Dictionary = slots[peer_id]
+		var team_id: int = entry.team_id
+		var team_slot: int = entry.team_slot
+		_state_machine.register_remote_assigned_player(peer_id, team_slot, team_id)
+		var team: Team = teams[team_id]
+		var colors: Dictionary = _generate_player_colors(team_id)
+		var is_left: bool = entry.get("is_left_handed", true)
+		var p_name: String = entry.get("player_name", "Player")
+		NetworkManager.send_slot_assignment(peer_id, team_slot, team_id, colors.jersey, colors.helmet, colors.pants)
+		NetworkManager.send_sync_existing_players(peer_id, existing)
+		NetworkManager.send_spawn_remote_skater(peer_id, team_slot, team_id, colors.jersey, colors.helmet, colors.pants, is_left, p_name)
+		_spawn_remote_player(peer_id, team_slot, team, colors.jersey, colors.helmet, colors.pants, is_left, p_name)
+		existing.append([peer_id, team_slot, team_id, colors.jersey, colors.helmet, colors.pants, is_left, p_name])
+	NetworkManager.pending_lobby_slots = {}
+
+func get_period_duration() -> float:
+	return _state_machine.period_duration if _state_machine != null else GameRules.PERIOD_DURATION
+
+func get_num_periods() -> int:
+	return _state_machine.num_periods if _state_machine != null else GameRules.NUM_PERIODS
+
 func _apply_reset() -> void:
 	_state_machine.reset_all()
 	_last_emitted_clock_secs = -1
 	score_changed.emit(0, 0)
 	period_changed.emit(1)
-	clock_updated.emit(GameRules.PERIOD_DURATION)
+	clock_updated.emit(_state_machine.period_duration)
 	_reset_stats()
 
 func _generate_player_colors(team_id: int) -> Dictionary:
@@ -531,6 +597,8 @@ func _generate_player_colors(team_id: int) -> Dictionary:
 # typed network state objects; serialization via to_array() happens here, at
 # the RPC boundary.
 func get_world_state() -> Array:
+	if puck_controller == null or _state_machine == null:
+		return []
 	var state: Array = []
 	for peer_id in players:
 		var record: PlayerRecord = players[peer_id]

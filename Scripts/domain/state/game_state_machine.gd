@@ -24,6 +24,12 @@ var _phase_timer: float = 0.0
 var current_period: int   = 1
 var time_remaining: float = GameRules.PERIOD_DURATION
 
+# ── Configurable rules (overridden by lobby; default to GameRules constants) ─
+var num_periods: int       = GameRules.NUM_PERIODS
+var period_duration: float = GameRules.PERIOD_DURATION
+var ot_enabled: bool       = GameRules.OT_ENABLED
+var ot_duration: float     = GameRules.OT_DURATION
+
 # ── Scores ───────────────────────────────────────────────────────────────────
 var scores: Array[int] = [0, 0]
 var last_scoring_team_id: int = -1
@@ -33,7 +39,6 @@ var period_scores: Array[Array] = []  # [team_id][period_index 0-based]; grows d
 # ── Player registry (domain view) ────────────────────────────────────────────
 # peer_id → { slot: int, team_id: int, faceoff_position: Vector3 }
 var players: Dictionary[int, Dictionary] = {}
-var _next_team_slots: Array[int] = [0, 0]  # next available team_slot per team
 
 # ── Icing ────────────────────────────────────────────────────────────────────
 var last_carrier_team_id: int = -1
@@ -43,7 +48,7 @@ var _icing_timer: float = 0.0
 
 
 func _init() -> void:
-	period_scores = _make_period_scores(GameRules.NUM_PERIODS)
+	period_scores = _make_period_scores(num_periods)
 
 static func _make_period_scores(num_periods: int) -> Array[Array]:
 	var arr: Array[int] = []
@@ -159,11 +164,20 @@ func compute_ghost_state(
 
 # ── Player registry ──────────────────────────────────────────────────────────
 
+func _first_available_slot(team_id: int) -> int:
+	var occupied: Array[int] = []
+	for p: Dictionary in players.values():
+		if p.team_id == team_id:
+			occupied.append(p.team_slot)
+	for s: int in range(PlayerRules.MAX_PER_TEAM):
+		if s not in occupied:
+			return s
+	return occupied.size()
+
 # Call once at host startup. Returns { team_slot: int, team_id: int }.
 func register_host(peer_id: int) -> Dictionary:
 	var team_id: int = PlayerRules.assign_team(0, 0)
-	var team_slot: int = _next_team_slots[team_id]
-	_next_team_slots[team_id] += 1
+	var team_slot: int = _first_available_slot(team_id)
 	players[peer_id] = {
 		"team_slot": team_slot,
 		"team_id": team_id,
@@ -175,8 +189,7 @@ func register_host(peer_id: int) -> Dictionary:
 func on_player_connected(peer_id: int) -> Dictionary:
 	var team_id: int = PlayerRules.assign_team(
 			count_players_on_team(0), count_players_on_team(1))
-	var team_slot: int = _next_team_slots[team_id]
-	_next_team_slots[team_id] += 1
+	var team_slot: int = _first_available_slot(team_id)
 	players[peer_id] = {
 		"team_slot": team_slot,
 		"team_id": team_id,
@@ -213,7 +226,6 @@ func get_slot_roster() -> Array[Dictionary]:
 
 # Validates and applies a slot swap. Returns { old_team_id, old_slot, new_team_id,
 # new_slot } on success, or an empty Dictionary if the swap is rejected.
-# Does not touch _next_team_slots — swap changes occupancy, not auto-assign counters.
 func try_swap_slot(peer_id: int, new_team_id: int, new_slot: int) -> Dictionary:
 	if not players.has(peer_id):
 		return {}
@@ -247,12 +259,20 @@ func reset_all() -> void:
 	scores[1] = 0
 	team_shots[0] = 0
 	team_shots[1] = 0
-	period_scores = _make_period_scores(GameRules.NUM_PERIODS)
+	period_scores = _make_period_scores(num_periods)
 	current_period = 1
-	time_remaining = GameRules.PERIOD_DURATION
+	time_remaining = period_duration
 	icing_team_id = -1
 	_icing_timer = 0.0
 	last_carrier_team_id = -1
+
+func apply_config(p_num_periods: int, p_period_duration: float, p_ot_enabled: bool, p_ot_duration: float) -> void:
+	num_periods      = p_num_periods
+	period_duration  = p_period_duration
+	ot_enabled       = p_ot_enabled
+	ot_duration      = p_ot_duration
+	time_remaining   = period_duration
+	period_scores    = _make_period_scores(num_periods)
 
 # Transitions to FACEOFF_PREP and clears icing state. Used by manual reset and
 # after goals (the goal path is driven automatically by tick timer).
@@ -344,8 +364,8 @@ func _tick_phase(delta: float) -> bool:
 	return false
 
 func _on_period_clock_expired() -> void:
-	if current_period >= GameRules.NUM_PERIODS:
-		if GameRules.OT_ENABLED and scores[0] == scores[1]:
+	if current_period >= num_periods:
+		if ot_enabled and scores[0] == scores[1]:
 			_set_phase(GamePhase.Phase.END_OF_PERIOD)
 		else:
 			_set_phase(GamePhase.Phase.GAME_OVER)
@@ -353,11 +373,11 @@ func _on_period_clock_expired() -> void:
 		_set_phase(GamePhase.Phase.END_OF_PERIOD)
 
 func _is_ot_period() -> bool:
-	return current_period > GameRules.NUM_PERIODS
+	return current_period > num_periods
 
 func _advance_period() -> void:
 	current_period += 1
-	time_remaining = GameRules.OT_DURATION if _is_ot_period() else GameRules.PERIOD_DURATION
+	time_remaining = ot_duration if _is_ot_period() else period_duration
 	# Extend period_scores arrays to cover the new period
 	if period_scores[0].size() < current_period:
 		period_scores[0].append(0)

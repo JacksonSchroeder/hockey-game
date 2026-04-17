@@ -23,12 +23,19 @@ signal game_reset_received
 signal stats_received(data: Array)
 signal slot_swap_requested(peer_id: int, new_team_id: int, new_slot: int)
 signal slot_swap_confirmed(peer_id: int, old_team_id: int, old_slot: int, new_team_id: int, new_slot: int, jersey: Color, helmet: Color, pants: Color)
+signal game_started(config: Dictionary)
+signal lobby_roster_synced(roster: Array)
 
 # ── State ─────────────────────────────────────────────────────────────────────
 var is_host: bool = false
 var game_initiated: bool = false
 var local_is_left_handed: bool = true
 var local_player_name: String = "Player"
+var pending_game_config: Dictionary = {}
+var pending_lobby_slots: Dictionary = {}  # peer_id → { team_id, team_slot, player_name, is_left_handed }
+var pending_lobby_roster: Array = []
+var pending_join_slot: Dictionary = {}   # { team_slot, team_id, jersey_color, helmet_color, pants_color }
+var pending_join_players: Array = []     # sync_existing_players data for join-in-progress
 var _local_controller: LocalController = null
 var _remote_controllers: Dictionary = {}  # peer_id -> RemoteController
 var _peer_handedness: Dictionary = {}     # peer_id -> bool (host only)
@@ -48,7 +55,11 @@ var state_delta: float = 1.0 / Constants.STATE_RATE
 const CONNECT_TIMEOUT: float = 10.0
 
 func _ready() -> void:
-	pass  # All start paths go through MainMenu.
+	multiplayer.peer_connected.connect(_on_peer_connected)
+	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	multiplayer.connected_to_server.connect(_on_connected_to_server)
+	multiplayer.connection_failed.connect(_on_connection_failed)
+	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
 # ── Connection ────────────────────────────────────────────────────────────────
 func start_offline() -> void:
@@ -70,8 +81,6 @@ func start_host() -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	print("Server started on port ", Constants.PORT)
-	multiplayer.peer_connected.connect(_on_peer_connected)
-	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
 func start_client(ip: String) -> void:
 	is_host = false
@@ -84,9 +93,6 @@ func start_client(ip: String) -> void:
 	multiplayer.multiplayer_peer = peer
 	_connect_timer = 0.0
 	print("Connecting to ", ip, ":", Constants.PORT)
-	multiplayer.connected_to_server.connect(_on_connected_to_server)
-	multiplayer.connection_failed.connect(_on_connection_failed)
-	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
 func on_game_scene_ready() -> void:
 	if is_host:
@@ -124,6 +130,7 @@ func _on_connection_failed() -> void:
 	get_tree().change_scene_to_file(Constants.SCENE_MAIN_MENU)
 
 func _on_server_disconnected() -> void:
+	print("[NM] _on_server_disconnected fired on client")
 	push_error("Server disconnected")
 	pending_error = "Lost connection to server."
 	disconnected_from_server.emit()
@@ -146,6 +153,11 @@ func reset() -> void:
 	_remote_controllers.clear()
 	_peer_handedness.clear()
 	_peer_names.clear()
+	pending_game_config = {}
+	pending_lobby_slots = {}
+	pending_lobby_roster = []
+	pending_join_slot = {}
+	pending_join_players = []
 	_input_timer = 0.0
 	_state_timer = 0.0
 	_connect_timer = -1.0
@@ -190,6 +202,8 @@ func _broadcast_state() -> void:
 	if not _world_state_provider.is_valid():
 		return
 	var state: Array = _world_state_provider.call()
+	if state.is_empty():
+		return
 	for peer_id in multiplayer.get_peers():
 		receive_world_state.rpc_id(peer_id, state)
 
@@ -224,6 +238,11 @@ func receive_world_state(state: Array) -> void:
 
 @rpc("authority", "reliable")
 func assign_player_slot(team_slot: int, team_id: int, jersey_color: Color, helmet_color: Color, pants_color: Color) -> void:
+	var scene := get_tree().current_scene
+	if not is_host and (scene == null or scene.scene_file_path != Constants.SCENE_HOCKEY):
+		pending_join_slot = { "team_slot": team_slot, "team_id": team_id,
+			"jersey_color": jersey_color, "helmet_color": helmet_color, "pants_color": pants_color }
+		return
 	slot_assigned.emit(team_slot, team_id, jersey_color, helmet_color, pants_color)
 
 @rpc("authority", "reliable")
@@ -232,6 +251,10 @@ func spawn_remote_skater(peer_id: int, team_slot: int, team_id: int, jersey_colo
 
 @rpc("authority", "reliable")
 func sync_existing_players(player_data: Array) -> void:
+	var scene := get_tree().current_scene
+	if not is_host and (scene == null or scene.scene_file_path != Constants.SCENE_HOCKEY):
+		pending_join_players = player_data
+		return
 	existing_players_synced.emit(player_data)
 	
 func send_puck_picked_up(peer_id: int) -> void:
@@ -331,6 +354,49 @@ func send_confirm_slot_swap(peer_id: int, old_team_id: int, old_slot: int,
 		confirm_slot_swap.rpc_id(remote_id, peer_id, old_team_id, old_slot,
 				new_team_id, new_slot, jersey, helmet, pants)
 	slot_swap_confirmed.emit(peer_id, old_team_id, old_slot, new_team_id, new_slot, jersey, helmet, pants)
+
+signal join_in_progress(config: Dictionary)
+
+@rpc("authority", "reliable")
+func notify_join_in_progress(p_num_periods: int, p_period_duration: float,
+		p_ot_enabled: bool, p_ot_duration: float) -> void:
+	print("[NM] notify_join_in_progress received — periods=%d dur=%.0f" % [p_num_periods, p_period_duration])
+	join_in_progress.emit({
+		"num_periods": p_num_periods,
+		"period_duration": p_period_duration,
+		"ot_enabled": p_ot_enabled,
+		"ot_duration": p_ot_duration,
+	})
+
+func send_join_in_progress(peer_id: int, config: Dictionary) -> void:
+	notify_join_in_progress.rpc_id(peer_id,
+		config.num_periods, config.period_duration,
+		config.ot_enabled, config.ot_duration)
+
+@rpc("authority", "reliable")
+func notify_game_start(p_num_periods: int, p_period_duration: float,
+		p_ot_enabled: bool, p_ot_duration: float) -> void:
+	game_started.emit({
+		"num_periods": p_num_periods,
+		"period_duration": p_period_duration,
+		"ot_enabled": p_ot_enabled,
+		"ot_duration": p_ot_duration,
+	})
+
+@rpc("authority", "reliable")
+func sync_lobby_roster(roster: Array) -> void:
+	pending_lobby_roster = roster
+	lobby_roster_synced.emit(roster)
+
+func send_game_start(config: Dictionary) -> void:
+	for peer_id: int in multiplayer.get_peers():
+		notify_game_start.rpc_id(peer_id,
+			config.num_periods, config.period_duration,
+			config.ot_enabled, config.ot_duration)
+	game_started.emit(config)
+
+func send_lobby_roster(peer_id: int, roster: Array) -> void:
+	sync_lobby_roster.rpc_id(peer_id, roster)
 
 # ── Registration ──────────────────────────────────────────────────────────────
 func set_world_state_provider(provider: Callable) -> void:

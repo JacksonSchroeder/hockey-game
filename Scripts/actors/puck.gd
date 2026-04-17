@@ -106,6 +106,9 @@ func _is_on_cooldown(skater: Skater) -> bool:
 func _set_cooldown(skater: Skater, duration: float) -> void:
 	_cooldown_timers[skater] = duration
 
+func remove_skater_cooldown(skater: Skater) -> void:
+	_cooldown_timers.erase(skater)
+
 # ── Physics ───────────────────────────────────────────────────────────────────
 func _get_skater_from_area(area: Area3D) -> Skater:
 	var node: Node = area
@@ -299,10 +302,16 @@ func _physics_process(delta: float) -> void:
 		return
 
 	# Tick per-skater cooldowns regardless of carrier state
-	for skater: Skater in _cooldown_timers.keys():
+	var _expired: Array = []
+	for skater in _cooldown_timers.keys():
+		if not is_instance_valid(skater):
+			_expired.append(skater)
+			continue
 		_cooldown_timers[skater] -= delta
 		if _cooldown_timers[skater] <= 0.0:
-			_cooldown_timers.erase(skater)
+			_expired.append(skater)
+	for s in _expired:
+		_cooldown_timers.erase(s)
 
 	if carrier != null:
 		freeze = true

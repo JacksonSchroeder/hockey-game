@@ -4,6 +4,7 @@ extends Control
 var _ip_field: LineEdit
 var _error_label: Label = null
 var _settings_popup: Control = null
+var _connecting_popup: Control = null
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -94,6 +95,7 @@ func _build_ui() -> void:
 	vbox.add_child(update_checker)
 
 	_build_settings_popup()
+	_build_connecting_popup()
 
 func _build_settings_popup() -> void:
 	var overlay := ColorRect.new()
@@ -211,10 +213,65 @@ func _build_settings_popup() -> void:
 	_settings_popup.add_child(panel)
 	add_child(_settings_popup)
 
+func _build_connecting_popup() -> void:
+	var overlay := ColorRect.new()
+	overlay.color = Color(0.0, 0.0, 0.0, 0.65)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.07, 0.07, 0.09, 0.96)
+	panel_style.set_corner_radius_all(6)
+	panel_style.set_content_margin_all(36)
+
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", panel_style)
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 20)
+	panel.add_child(vbox)
+
+	var status_label := Label.new()
+	status_label.name = "StatusLabel"
+	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status_label.add_theme_font_size_override("font_size", 22)
+	status_label.add_theme_color_override("font_color", Color.WHITE)
+	vbox.add_child(status_label)
+
+	var cancel_btn := _make_button("Cancel")
+	cancel_btn.pressed.connect(_on_join_cancelled)
+	vbox.add_child(cancel_btn)
+
+	_connecting_popup = Control.new()
+	_connecting_popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_connecting_popup.visible = false
+	_connecting_popup.add_child(overlay)
+	_connecting_popup.add_child(panel)
+	add_child(_connecting_popup)
+
+func _show_connecting(ip: String) -> void:
+	var label := _connecting_popup.find_child("StatusLabel", true, false) as Label
+	if label:
+		label.text = "Connecting to %s..." % ip
+	_connecting_popup.visible = true
+
+func _on_join_cancelled() -> void:
+	_disconnect_join_signals()
+	NetworkManager.reset()
+	_connecting_popup.visible = false
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and _settings_popup.visible:
-		_settings_popup.visible = false
-		get_viewport().set_input_as_handled()
+	if event.is_action_pressed("ui_cancel"):
+		if _connecting_popup.visible:
+			_on_join_cancelled()
+			get_viewport().set_input_as_handled()
+		elif _settings_popup.visible:
+			_settings_popup.visible = false
+			get_viewport().set_input_as_handled()
 
 func _on_settings_pressed() -> void:
 	_settings_popup.visible = true
@@ -232,7 +289,7 @@ func _on_offline_pressed() -> void:
 
 func _on_host_pressed() -> void:
 	NetworkManager.start_host()
-	get_tree().change_scene_to_file(Constants.SCENE_HOCKEY)
+	get_tree().change_scene_to_file(Constants.SCENE_LOBBY)
 
 func _on_join_pressed() -> void:
 	var ip: String = _ip_field.text.strip_edges()
@@ -240,5 +297,25 @@ func _on_join_pressed() -> void:
 		return
 	PlayerPrefs.last_ip = ip
 	PlayerPrefs.save()
+	_disconnect_join_signals()
 	NetworkManager.start_client(ip)
+	_show_connecting(ip)
+	NetworkManager.lobby_roster_synced.connect(_on_join_got_lobby, CONNECT_ONE_SHOT)
+	NetworkManager.join_in_progress.connect(_on_join_got_game, CONNECT_ONE_SHOT)
+
+func _disconnect_join_signals() -> void:
+	if NetworkManager.lobby_roster_synced.is_connected(_on_join_got_lobby):
+		NetworkManager.lobby_roster_synced.disconnect(_on_join_got_lobby)
+	if NetworkManager.join_in_progress.is_connected(_on_join_got_game):
+		NetworkManager.join_in_progress.disconnect(_on_join_got_game)
+
+func _on_join_got_lobby(_roster: Array) -> void:
+	if NetworkManager.join_in_progress.is_connected(_on_join_got_game):
+		NetworkManager.join_in_progress.disconnect(_on_join_got_game)
+	get_tree().change_scene_to_file(Constants.SCENE_LOBBY)
+
+func _on_join_got_game(config: Dictionary) -> void:
+	if NetworkManager.lobby_roster_synced.is_connected(_on_join_got_lobby):
+		NetworkManager.lobby_roster_synced.disconnect(_on_join_got_lobby)
+	NetworkManager.pending_game_config = config
 	get_tree().change_scene_to_file(Constants.SCENE_HOCKEY)

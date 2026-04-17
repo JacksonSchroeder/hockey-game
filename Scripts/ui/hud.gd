@@ -36,7 +36,7 @@ func _ready() -> void:
 	_build_game_menu()
 	_build_toast_area()
 	_period_label.text = _period_ordinal(1)
-	_clock_label.text = _format_clock(GameRules.PERIOD_DURATION)
+	_clock_label.text = _format_clock(GameManager.get_period_duration())
 	_home_score_label.text = "0"
 	_away_score_label.text = "0"
 	_phase_panel.visible = false
@@ -587,8 +587,9 @@ func _lbl(text: String, size: int, color: Color) -> Label:
 	return l
 
 func _period_ordinal(p: int) -> String:
-	if p > GameRules.NUM_PERIODS:
-		return "OT%d" % (p - GameRules.NUM_PERIODS)
+	var n: int = GameManager.get_num_periods()
+	if p > n:
+		return "OT%d" % (p - n)
 	match p:
 		1: return "1ST"
 		2: return "2ND"

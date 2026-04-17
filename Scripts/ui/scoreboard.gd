@@ -102,7 +102,7 @@ func _rebuild_period_grid(num_periods: int) -> void:
 	_period_summary_grid.add_child(Control.new())
 	for p: int in num_periods:
 		var period_num: int = p + 1
-		var header_text: String = "OT%d" % (period_num - GameRules.NUM_PERIODS) if period_num > GameRules.NUM_PERIODS else str(period_num)
+		var header_text: String = "OT%d" % (period_num - GameManager.get_num_periods()) if period_num > GameManager.get_num_periods() else str(period_num)
 		var h := _lbl(header_text, 12, _HEADER)
 		h.custom_minimum_size = Vector2(col_num, 0)
 		h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

@@ -1,5 +1,5 @@
 class_name SlotGridPanel
-extends Control
+extends VBoxContainer
 
 signal slot_selected(team_id: int, slot: int)
 
@@ -13,17 +13,15 @@ func _init() -> void:
 	_build_grid()
 
 func _build_grid() -> void:
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_child(vbox)
+	add_theme_constant_override("separation", 6)
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	# Away on top (team 1), Home on bottom (team 0) — matches rink perspective.
 	for team_id: int in [1, 0]:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		vbox.add_child(row)
+		add_child(row)
 
 		var label := Label.new()
 		label.text = "AWAY" if team_id == 1 else "HOME"

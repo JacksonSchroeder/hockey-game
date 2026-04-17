@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b5tdeyi7p847a"]
+
+[ext_resource type="Script" uid="uid://fofjv28ethxi" path="res://Scripts/ui/lobby_manager.gd" id="1_bpe3w"]
+
+[node name="Lobby" type="Node" unique_id=202201187]
+script = ExtResource("1_bpe3w")

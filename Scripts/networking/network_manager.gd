@@ -12,8 +12,8 @@ var _peer_handedness: Dictionary = {}     # peer_id -> bool (host only)
 var _input_timer: float = 0.0
 var _state_timer: float = 0.0
 var _connect_timer: float = -1.0
-var INPUT_DELTA: float = 1.0 / Constants.INPUT_RATE
-var STATE_DELTA: float = 1.0 / Constants.STATE_RATE
+var input_delta: float = 1.0 / Constants.INPUT_RATE
+var state_delta: float = 1.0 / Constants.STATE_RATE
 const CONNECT_TIMEOUT: float = 10.0
 
 func _ready() -> void:
@@ -120,15 +120,15 @@ func _process(delta: float) -> void:
 
 	if not is_host and _local_controller != null:
 		_input_timer += capped_delta
-		if _input_timer >= INPUT_DELTA:
-			_input_timer -= INPUT_DELTA
+		if _input_timer >= input_delta:
+			_input_timer -= input_delta
 			var state: InputState = _local_controller.get_current_input()
 			receive_input.rpc_id(1, state.to_array())
 
 	if is_host:
 		_state_timer += capped_delta
-		if _state_timer >= STATE_DELTA:
-			_state_timer -= STATE_DELTA
+		if _state_timer >= state_delta:
+			_state_timer -= state_delta
 			_broadcast_state()
 
 func _broadcast_state() -> void:

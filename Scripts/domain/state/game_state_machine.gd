@@ -50,9 +50,9 @@ var _icing_timer: float = 0.0
 func _init() -> void:
 	period_scores = _make_period_scores(num_periods)
 
-static func _make_period_scores(num_periods: int) -> Array[Array]:
+static func _make_period_scores(count: int) -> Array[Array]:
 	var arr: Array[int] = []
-	arr.resize(num_periods)
+	arr.resize(count)
 	arr.fill(0)
 	return [arr.duplicate(), arr.duplicate()]
 

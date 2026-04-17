@@ -22,6 +22,7 @@ func _ready() -> void:
 	_build_scorebug()
 	_build_phase_banner()
 	_build_elevation_indicator()
+	_build_version_tag()
 	if NetworkManager.is_host:
 		_build_reset_button()
 	_period_label.text = _period_ordinal(1)
@@ -191,6 +192,20 @@ func _build_elevation_indicator() -> void:
 	var label := _lbl("\u2191 ELEVATED", 16, Color(0.4, 0.8, 1.0, 1.0))
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_elevation_panel.add_child(label)
+
+func _build_version_tag() -> void:
+	var label := _lbl("v%s" % BuildInfo.VERSION, 11, _DIM)
+	label.anchor_left = 1.0
+	label.anchor_right = 1.0
+	label.anchor_top = 1.0
+	label.anchor_bottom = 1.0
+	label.offset_left = -80.0
+	label.offset_right = -8.0
+	label.offset_top = -20.0
+	label.offset_bottom = -4.0
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(label)
 
 func _build_reset_button() -> void:
 	var btn := Button.new()

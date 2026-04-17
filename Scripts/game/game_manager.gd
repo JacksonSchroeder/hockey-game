@@ -762,20 +762,25 @@ func get_period_scores() -> Array:
 	return _state_machine.period_scores
 
 func apply_stats(data: Array) -> void:
+	# Wire format (must match _sync_stats_to_clients):
+	#   [pid, G, A, SOG, HITS] × N players   (5 ints each)
+	#   team_shots[0], team_shots[1]         (2 ints)
+	#   period_scores[0][0..2], [1][0..2]    (6 ints)
+	const PLAYER_RECORD_SIZE: int = 5
+	const FOOTER_SIZE: int = 2 + 2 * 3  # team_shots + period_scores for 2 teams × 3 periods
+	var players_end: int = data.size() - FOOTER_SIZE
 	var i: int = 0
-	while i + 4 < data.size():
+	while i < players_end:
 		var pid: int = data[i]
 		if players.has(pid):
-			players[pid].stats = PlayerStats.from_array(data.slice(i + 1, i + 5))
-		i += 5
-	if i + 1 < data.size():
-		_state_machine.team_shots[0] = data[i]
-		_state_machine.team_shots[1] = data[i + 1]
-		i += 2
-	if i + 5 < data.size():
-		for team_id: int in 2:
-			for p: int in 3:
-				_state_machine.period_scores[team_id][p] = data[i]
-				i += 1
+			players[pid].stats = PlayerStats.from_array(data.slice(i + 1, i + PLAYER_RECORD_SIZE))
+		i += PLAYER_RECORD_SIZE
+	_state_machine.team_shots[0] = data[i]
+	_state_machine.team_shots[1] = data[i + 1]
+	i += 2
+	for team_id: int in 2:
+		for p: int in 3:
+			_state_machine.period_scores[team_id][p] = data[i]
+			i += 1
 	shots_on_goal_changed.emit(_state_machine.team_shots[0], _state_machine.team_shots[1])
 	stats_updated.emit()

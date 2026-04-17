@@ -22,14 +22,6 @@ static func generate_primary_color(team_id: int) -> Color:
 		return Color(0.988, 0.710, 0.078)  # Penguins Gold #FCB514
 	return Color(0.000, 0.125, 0.357)      # Leafs Blue #00205B
 
-# Secondary color: used for UI. Fixed per team.
-#   Team 0 (home) = Penguins Black
-#   Team 1 (away) = Leafs White
-static func generate_secondary_color(team_id: int) -> Color:
-	if team_id == 0:
-		return Color(0.06, 0.06, 0.06)  # Penguins Black
-	return Color(1.00, 1.00, 1.00)      # Leafs White
-
 # Uniform colors for skater meshes.
 static func generate_jersey_color(team_id: int) -> Color:
 	if team_id == 0:

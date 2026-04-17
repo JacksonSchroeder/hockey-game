@@ -309,11 +309,7 @@ func _physics_process(delta: float) -> void:
 		# Pin at the blade contact point (mid-blade), not the heel (Marker3D).
 		global_position = carrier.get_blade_contact_global()
 		global_position.y = ice_height
-	else:
-		if linear_velocity.length() > max_speed:
-			linear_velocity = linear_velocity.normalized() * max_speed
-		if is_airborne():
-			pass
-		else:
-			linear_velocity.y = 0.0
-			position.y = ice_height
+	elif not is_airborne():
+		# Max-speed clamp already runs every physics substep in _integrate_forces.
+		linear_velocity.y = 0.0
+		position.y = ice_height

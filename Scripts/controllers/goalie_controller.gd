@@ -40,7 +40,7 @@ extends Node
 @export var part_lerp_speed: float = 6.0
 @export var reaction_lerp_speed: float = 18.0
 @export var recovery_lerp_speed: float = 3.0
-@export var interpolation_delay: float = 0.1
+@export var interpolation_delay: float = Constants.NETWORK_INTERPOLATION_DELAY
 
 @export var low_shot_threshold: float = 0.45
 @export var elevated_threshold: float = 0.45
@@ -338,17 +338,7 @@ func _get_config(state: State) -> GoalieBodyConfig:
 			c.glove_rot     = Vector3.ZERO
 			c.stick_pos     = Vector3(0.0,  0.02,  -0.25)
 			c.stick_rot     = Vector3.ZERO
-			if _reacting_to_shot and _shot_is_elevated:
-				# Move glove or blocker toward projected impact height.
-				# shot_local_x > 0 = goalie's right = blocker side (for catches_left=true).
-				var shot_local_x: float = (_shot_impact_x - _goal_center_x) * -_direction_sign
-				var target_y: float = clampf(_shot_impact_y, react_hand_y_min, react_hand_y_max)
-				if shot_local_x <= 0.0:
-					c.glove_pos = Vector3(c.glove_pos.x, target_y, react_hand_z)
-					c.glove_rot = Vector3(-25.0, 0.0, 0.0)
-				else:
-					c.blocker_pos = Vector3(c.blocker_pos.x, target_y, react_hand_z)
-					c.blocker_rot = Vector3(-25.0, 0.0, 0.0)
+			_apply_elevated_shot_reaction(c)
 		State.BUTTERFLY:
 			c.left_pad_pos  = Vector3(-0.42 - _five_hole_openness, 0.14, -0.20)
 			c.left_pad_rot  = Vector3(0.0, 0.0, -90.0)
@@ -364,15 +354,7 @@ func _get_config(state: State) -> GoalieBodyConfig:
 			c.glove_rot     = Vector3.ZERO
 			c.stick_pos     = Vector3(0.0,  0.02,  -0.30)
 			c.stick_rot     = Vector3.ZERO
-			if _reacting_to_shot and _shot_is_elevated:
-				var shot_local_x: float = (_shot_impact_x - _goal_center_x) * -_direction_sign
-				var target_y: float = clampf(_shot_impact_y, react_hand_y_min, react_hand_y_max)
-				if shot_local_x <= 0.0:
-					c.glove_pos = Vector3(c.glove_pos.x, target_y, react_hand_z)
-					c.glove_rot = Vector3(-25.0, 0.0, 0.0)
-				else:
-					c.blocker_pos = Vector3(c.blocker_pos.x, target_y, react_hand_z)
-					c.blocker_rot = Vector3(-25.0, 0.0, 0.0)
+			_apply_elevated_shot_reaction(c)
 		State.RVH_LEFT:
 			c.left_pad_pos  = Vector3( 0.04, 0.14, 0.0)
 			c.left_pad_rot  = Vector3(0.0, rvh_post_pad_angle, -90.0)
@@ -411,6 +393,21 @@ func _get_config(state: State) -> GoalieBodyConfig:
 		c.blocker_pos = Vector3(-tmp_pos.x, tmp_pos.y, tmp_pos.z)
 		c.blocker_rot = tmp_rot
 	return c
+
+# Move glove or blocker toward projected impact height when reacting to an
+# elevated shot. shot_local_x > 0 = goalie's right = blocker side (for
+# catches_left=true). Called from STANDING/BUTTERFLY branches of _get_config.
+func _apply_elevated_shot_reaction(c: GoalieBodyConfig) -> void:
+	if not _reacting_to_shot or not _shot_is_elevated:
+		return
+	var shot_local_x: float = (_shot_impact_x - _goal_center_x) * -_direction_sign
+	var target_y: float = clampf(_shot_impact_y, react_hand_y_min, react_hand_y_max)
+	if shot_local_x <= 0.0:
+		c.glove_pos = Vector3(c.glove_pos.x, target_y, react_hand_z)
+		c.glove_rot = Vector3(-25.0, 0.0, 0.0)
+	else:
+		c.blocker_pos = Vector3(c.blocker_pos.x, target_y, react_hand_z)
+		c.blocker_rot = Vector3(-25.0, 0.0, 0.0)
 
 # ── Shot Detection ────────────────────────────────────────────────────────────
 func _on_puck_released() -> void:

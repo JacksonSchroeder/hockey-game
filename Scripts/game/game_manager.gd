@@ -30,9 +30,9 @@ var _spawner: ActorSpawner = null
 var teams: Array[Team] = []
 var puck: Puck = null
 var goals: Array[HockeyGoal] = []
-var goalies: Array = []
+var goalies: Array[Goalie] = []
 var goalie_controllers: Array[GoalieController] = []
-var players: Dictionary = {}  # peer_id -> PlayerRecord (with Skater/Controller refs)
+var players: Dictionary[int, PlayerRecord] = {}
 var puck_controller: PuckController = null
 
 # ── Shot-on-goal tracking (host only) ────────────────────────────────────────
@@ -242,7 +242,7 @@ func _spawn_puck() -> void:
 
 func _spawn_goalies() -> void:
 	var result: Dictionary = _spawner.spawn_goalie_pair(puck, NetworkManager.is_host)
-	goalies = [result.top_goalie, result.bottom_goalie]
+	goalies = [result.top_goalie as Goalie, result.bottom_goalie as Goalie]
 	goalie_controllers = [result.top_controller, result.bottom_controller]
 	# top goalie (negative-Z) defends Team 1's end; bottom (positive-Z) defends Team 0's.
 	teams[1].goalie_controller = result.top_controller
@@ -590,7 +590,7 @@ func get_puck() -> Puck:
 
 func get_goalie_world_positions() -> Array[Vector3]:
 	var positions: Array[Vector3] = []
-	for goalie: Node3D in goalies:
+	for goalie: Goalie in goalies:
 		positions.append(goalie.global_position)
 	return positions
 

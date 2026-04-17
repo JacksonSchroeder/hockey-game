@@ -277,7 +277,7 @@ Two `Team` objects created at startup. Each owns a `defended_goal` (`HockeyGoal`
 
 ### Player Colors
 
-Each player gets two colors via `PlayerRules.generate_primary_color(team_id)` / `generate_secondary_color(team_id)`. Colors are fixed per team — all teammates match:
+Each player's UI badge uses `PlayerRules.generate_primary_color(team_id)`; skater meshes are painted via `generate_jersey_color` / `generate_helmet_color` / `generate_pants_color`. Colors are fixed per team — all teammates match:
 
 - **Team 0 (home):** primary = Pittsburgh Penguins Vegas Gold (#FFB81C); secondary = Penguins Black.
 - **Team 1 (away):** primary = Toronto Maple Leafs Blue (#003E7E); secondary = Leafs White.

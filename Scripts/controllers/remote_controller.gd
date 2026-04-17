@@ -1,7 +1,7 @@
 class_name RemoteController
 extends SkaterController
 
-@export var interpolation_delay: float = 0.1
+@export var interpolation_delay: float = Constants.NETWORK_INTERPOLATION_DELAY
 
 var _latest_input: InputState = InputState.new()
 var _state_buffer: Array[BufferedSkaterState] = []

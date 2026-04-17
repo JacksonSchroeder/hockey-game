@@ -54,7 +54,6 @@ extends CharacterBody3D
 @onready var upper_body: Node3D = $UpperBody
 @onready var blade: Marker3D = $UpperBody/Blade
 @onready var shoulder: Marker3D = $UpperBody/Shoulder
-@onready var stick_raycast: RayCast3D = $StickRaycast  # kept in scene; wall clamping is now analytic
 @onready var stick_mesh: MeshInstance3D = $UpperBody/StickMesh
 @onready var _upper_body_mesh: MeshInstance3D = $UpperBody/UpperBodyMesh
 @onready var _blade_mesh: MeshInstance3D = $UpperBody/Blade/MeshInstance3D

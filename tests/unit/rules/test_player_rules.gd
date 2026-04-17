@@ -33,22 +33,6 @@ func test_team_0_primary_is_deterministic() -> void:
 func test_team_1_primary_is_deterministic() -> void:
 	assert_eq(PlayerRules.generate_primary_color(1), PlayerRules.generate_primary_color(1))
 
-# ── generate_secondary_color ─────────────────────────────────────────────────
-
-func test_team_0_secondary_is_near_black() -> void:
-	var c: Color = PlayerRules.generate_secondary_color(0)
-	assert_true(c.r < 0.1 and c.g < 0.1 and c.b < 0.1, "home secondary should be Penguins black, got r=%f g=%f b=%f" % [c.r, c.g, c.b])
-
-func test_team_1_secondary_is_white() -> void:
-	var c: Color = PlayerRules.generate_secondary_color(1)
-	assert_true(c.r > 0.9 and c.g > 0.9 and c.b > 0.9, "away secondary should be Leafs white, got r=%f g=%f b=%f" % [c.r, c.g, c.b])
-
-func test_team_0_secondary_is_deterministic() -> void:
-	assert_eq(PlayerRules.generate_secondary_color(0), PlayerRules.generate_secondary_color(0))
-
-func test_team_1_secondary_is_deterministic() -> void:
-	assert_eq(PlayerRules.generate_secondary_color(1), PlayerRules.generate_secondary_color(1))
-
 # ── faceoff_position_for_slot ────────────────────────────────────────────────
 
 func test_faceoff_positions_even_slots_are_team_0_side() -> void:

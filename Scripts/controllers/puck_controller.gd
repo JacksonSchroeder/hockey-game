@@ -1,7 +1,7 @@
 class_name PuckController
 extends Node
 
-@export var interpolation_delay: float = 0.1
+@export var interpolation_delay: float = Constants.NETWORK_INTERPOLATION_DELAY
 @export var prediction_reconcile_threshold: float = 3.0
 @export var position_correction_blend: float = 0.3
 @export var velocity_correction_blend: float = 0.5

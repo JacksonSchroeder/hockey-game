@@ -72,7 +72,7 @@ func _ready() -> void:
 
 	_prev_pos = global_position
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	var skater: Skater = get_parent() as Skater
 	if skater == null:
 		return

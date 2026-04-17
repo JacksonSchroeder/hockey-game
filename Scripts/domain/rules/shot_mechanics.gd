@@ -19,7 +19,7 @@ class_name ShotMechanics
 static func release_wrister(
 		player_pos: Vector3,
 		mouse_world_pos: Vector3,
-		blade_world_pos: Vector3,
+		_blade_world_pos: Vector3,
 		blade_local_pos: Vector3,
 		shoulder_local_pos: Vector3,
 		is_left_handed: bool,

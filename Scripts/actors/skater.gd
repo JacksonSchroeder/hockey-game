@@ -90,6 +90,7 @@ var bottom_forearm_mesh: MeshInstance3D = null
 
 signal body_checked_player(victim: Skater, impact_force: float, hit_direction: Vector3)
 signal body_block_hit(body: Node3D)
+@warning_ignore("unused_signal")
 signal pulse_dashed(dash_direction: Vector3)
 
 # ── Runtime ───────────────────────────────────────────────────────────────────

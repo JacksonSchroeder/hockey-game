@@ -23,6 +23,7 @@ func _ready() -> void:
 	_build_phase_banner()
 	_build_elevation_indicator()
 	_build_version_tag()
+	_build_bug_report_button()
 	if NetworkManager.is_host:
 		_build_reset_button()
 	_period_label.text = _period_ordinal(1)
@@ -206,6 +207,27 @@ func _build_version_tag() -> void:
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
+
+func _build_bug_report_button() -> void:
+	var btn := Button.new()
+	btn.text = "Report Bug"
+	btn.add_theme_font_size_override("font_size", 12)
+	btn.anchor_left = 1.0
+	btn.anchor_right = 1.0
+	btn.anchor_top = 1.0
+	btn.anchor_bottom = 1.0
+	btn.offset_left = -96.0
+	btn.offset_right = -8.0
+	btn.offset_top = -48.0
+	btn.offset_bottom = -24.0
+	btn.pressed.connect(_on_bug_report_pressed)
+	add_child(btn)
+
+func _on_bug_report_pressed() -> void:
+	var title: String = "[bug] v%s %s - " % [BuildInfo.VERSION, OS.get_name()]
+	var body: String = "Version: v%s\nOS: %s\n\nWhat happened:\n\n\nSteps to reproduce:\n1. \n2. \n3. \n" % [BuildInfo.VERSION, OS.get_name()]
+	var url: String = "https://github.com/%s/issues/new?title=%s&body=%s" % [BuildInfo.REPO, title.uri_encode(), body.uri_encode()]
+	OS.shell_open(url)
 
 func _build_reset_button() -> void:
 	var btn := Button.new()

@@ -199,13 +199,13 @@ Blade placement goes through a custom top-hand inverse-kinematics solver (`TopHa
 
 ## Shooting
 
-**Puck carry speed penalty:** While carrying the puck, `effective_max_speed = max_speed * puck_carry_speed_multiplier` (default 0.88). The speed cap only applies to the cap check, not to thrust — so the skater still accelerates normally but is capped lower, preserving feel while making skating with the puck meaningfully slower than without it.
+**Puck carry speed penalty:** While carrying the puck, `effective_max_speed = max_speed * puck_carry_speed_multiplier` (default 0.85). The speed cap only applies to the cap check, not to thrust — so the skater still accelerates normally but is capped lower, preserving feel while making skating with the puck meaningfully slower than without it.
 
-**Pulse dash:** Hold Space + direction to fire a quick velocity impulse (crossover step push-off) instead of braking. Without direction, Space still brakes normally. The impulse is additive and capped at `effective_max` — at full speed a same-direction dash has no effect (no free acceleration), and an opposite-direction dash barely changes direction (it's a micro-adjustment, not a reversal tool). Cooldown 0.6s. VFX: ice spray in the anti-dash direction. Blocked during slapper charge and block stance. `_dash_cooldown_timer` is controller-local (consistent with other timers); any divergence between client and server is corrected by the 20Hz reconcile.
+**Pulse dash:** Hold Space + direction to fire a quick velocity impulse (crossover step push-off) instead of braking. Without direction, Space still brakes normally. The impulse is additive and capped at `effective_max` — at full speed a same-direction dash has no effect (no free acceleration), and an opposite-direction dash barely changes direction (it's a micro-adjustment, not a reversal tool). Cooldown 1.0s. VFX: ice spray in the anti-dash direction. Blocked during slapper charge and block stance. `_dash_cooldown_timer` is controller-local (consistent with other timers); any divergence between client and server is corrected by the 20Hz reconcile.
 
 **Quick shot:** Tap left click. Fires blade-direction at `quick_shot_power`. Low skill floor.
 
-**Wrister:** Hold left click, sweep blade to charge (distance-based), release to fire. Direction variance check resets charge if blade changes direction > 45° — prevents charge farming.
+**Wrister:** Hold left click, sweep blade to charge (distance-based), release to fire. Direction variance check resets charge if blade changes direction > 55° — prevents charge farming.
 
 **Slapshot (with puck):** Hold right click. Blade fixes forehand, skater glides, upper body aims within `slapper_aim_arc`. Time-based charge.
 

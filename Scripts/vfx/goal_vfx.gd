@@ -52,6 +52,6 @@ func _ready() -> void:
 
 func celebrate() -> void:
 	_particles.restart()
-	_light.light_energy = 4.0
+	_light.light_energy = 2.5
 	var tween := create_tween()
 	tween.tween_property(_light, "light_energy", 0.0, 1.8)

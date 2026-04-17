@@ -164,7 +164,7 @@ var _is_elevated: bool = false
 var _shot_dir: Vector3 = Vector3.ZERO
 var _follow_through_timer: float = 0.0
 var _charge_distance: float = 0.0
-var _prev_blade_pos: Vector3 = Vector3.ZERO
+var _prev_mouse_screen_pos: Vector2 = Vector2.ZERO
 var _prev_blade_dir: Vector3 = Vector3.ZERO
 var _slapper_charge_timer: float = 0.0
 var _dash_cooldown_timer: float = 0.0
@@ -321,23 +321,22 @@ func _state_wrister_aim(input: InputState, delta: float) -> void:
 	_apply_blade_from_mouse(input, delta)
 
 	if has_puck:
-		# Track mouse position relative to the player to remove skating-velocity
-		# contamination. When the player skates, both mouse_world_pos and
-		# global_position move together, so their difference only changes when
-		# the cursor actually moves.
-		var mouse_relative := Vector3(
-			input.mouse_world_pos.x - skater.global_position.x,
-			0.0,
-			input.mouse_world_pos.z - skater.global_position.z)
+		# Use screen-space mouse position for charge — only changes when the
+		# hardware mouse actually moves, immune to camera lag/drift.
+		# Scale by 0.01 so max_wrister_charge_distance stays in intuitive units
+		# (1.5 ≈ 150 px of drag for full charge).
+		var screen_pos: Vector2 = get_viewport().get_mouse_position()
+		var cur := Vector3(screen_pos.x * 0.01, 0.0, screen_pos.y * 0.01)
+		var prev := Vector3(_prev_mouse_screen_pos.x * 0.01, 0.0, _prev_mouse_screen_pos.y * 0.01)
 		var result: Dictionary = ChargeTracking.accumulate(
-				_prev_blade_pos,
-				mouse_relative,
+				prev,
+				cur,
 				_prev_blade_dir,
 				_charge_distance,
 				max_charge_direction_variance)
 		_charge_distance = result.charge
 		_prev_blade_dir = result.direction
-		_prev_blade_pos = mouse_relative
+		_prev_mouse_screen_pos = screen_pos
 		skater.shot_charge = _charge_distance / max_wrister_charge_distance
 
 	if not input.shoot_held:
@@ -500,11 +499,7 @@ func _enter_wrister_aim(input: InputState) -> void:
 	_shot_dir = Vector3.ZERO
 	_charge_distance = 0.0
 	_prev_blade_dir = Vector3.ZERO
-	# Seed with current relative-mouse so first-frame delta is zero (no spurious charge).
-	_prev_blade_pos = Vector3(
-		input.mouse_world_pos.x - skater.global_position.x,
-		0.0,
-		input.mouse_world_pos.z - skater.global_position.z)
+	_prev_mouse_screen_pos = get_viewport().get_mouse_position()
 
 func _cancel_slapper() -> void:
 	_slapper_charge_timer = 0.0

@@ -8,6 +8,8 @@ Complex features (AI state machines, new systems, architectural changes) are des
 
 **Before every commit:** update this file, `README.md`, and `ARCHITECTURE.md`. New files go in the Key Files table. Completed work moves out of Known Issues here. New known issues get added. README's What's In / Planned sections and ARCHITECTURE's Build Status table should reflect current state.
 
+**Never push without the user testing locally first.** Always stop at commit and wait for confirmation before running `git push`.
+
 **Scene files (`.tscn`) are edited by the user, not Claude.** Godot's scene format is error-prone to edit as text — node unique IDs, sub-resource references, and property ordering can silently break the scene. When a task requires scene changes, describe exactly what to add or modify and let the user make the edits in the Godot editor.
 
 ## What This Is

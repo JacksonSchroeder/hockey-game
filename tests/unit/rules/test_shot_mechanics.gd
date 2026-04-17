@@ -2,24 +2,24 @@ extends GutTest
 
 # ShotMechanics — wrister + slapper power/direction + wall-pin release.
 
-func _wrister_cfg() -> Dictionary:
-	return {
-		"min_wrister_power": 8.0,
-		"max_wrister_power": 25.0,
-		"max_wrister_charge_distance": 3.0,
-		"backhand_power_coefficient": 0.75,
-		"quick_shot_power": 12.0,
-		"quick_shot_threshold": 0.1,
-		"wrister_elevation": 0.3,
-	}
+func _wrister_cfg() -> ShotMechanics.WristerConfig:
+	var cfg := ShotMechanics.WristerConfig.new()
+	cfg.min_wrister_power = 8.0
+	cfg.max_wrister_power = 25.0
+	cfg.max_wrister_charge_distance = 3.0
+	cfg.backhand_power_coefficient = 0.75
+	cfg.quick_shot_power = 12.0
+	cfg.quick_shot_threshold = 0.1
+	cfg.wrister_elevation = 0.3
+	return cfg
 
-func _slapper_cfg() -> Dictionary:
-	return {
-		"min_slapper_power": 20.0,
-		"max_slapper_power": 40.0,
-		"max_slapper_charge_time": 1.0,
-		"slapper_elevation": 0.15,
-	}
+func _slapper_cfg() -> ShotMechanics.SlapperConfig:
+	var cfg := ShotMechanics.SlapperConfig.new()
+	cfg.min_slapper_power = 20.0
+	cfg.max_slapper_power = 40.0
+	cfg.max_slapper_charge_time = 1.0
+	cfg.slapper_elevation = 0.15
+	return cfg
 
 # ── Wrister: quick shot branch ───────────────────────────────────────────────
 

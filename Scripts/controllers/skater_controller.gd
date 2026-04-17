@@ -397,7 +397,7 @@ func _state_slapper_charge_without_puck(input: InputState, delta: float) -> void
 			# Compute direction/power, then signal up — GameManager acquires
 			# and releases the puck. Controller transitions immediately.
 			var locked_dir_3d := Vector3(_locked_slapper_dir.x, 0.0, _locked_slapper_dir.y)
-			var cfg: Dictionary = _slapper_config()
+			var cfg: ShotMechanics.SlapperConfig = _slapper_config()
 			var result := ShotMechanics.release_slapper(
 					blade_world,
 					input.mouse_world_pos,
@@ -580,7 +580,7 @@ func _release_slapper(input: InputState, one_timer: bool = false) -> void:
 	if has_puck:
 		# Direction is locked at the moment slap was pressed — no mid-swing steering.
 		var locked_dir_3d := Vector3(_locked_slapper_dir.x, 0.0, _locked_slapper_dir.y)
-		var cfg: Dictionary = _slapper_config()
+		var cfg: ShotMechanics.SlapperConfig = _slapper_config()
 		# One-timers always fire at max power regardless of actual charge built.
 		var charge: float = cfg.max_slapper_charge_time if one_timer else _slapper_charge_timer
 		var result := ShotMechanics.release_slapper(
@@ -917,24 +917,24 @@ func _block_movement_config() -> SkaterMovementRules.MovementConfig:
 	cfg.thrust = thrust * block_speed_multiplier
 	return cfg
 
-func _wrister_config() -> Dictionary:
-	return {
-		"min_wrister_power": min_wrister_power,
-		"max_wrister_power": max_wrister_power,
-		"max_wrister_charge_distance": max_wrister_charge_distance,
-		"backhand_power_coefficient": backhand_power_coefficient,
-		"quick_shot_power": quick_shot_power,
-		"quick_shot_threshold": quick_shot_threshold,
-		"wrister_elevation": wrister_elevation,
-	}
+func _wrister_config() -> ShotMechanics.WristerConfig:
+	var cfg := ShotMechanics.WristerConfig.new()
+	cfg.min_wrister_power = min_wrister_power
+	cfg.max_wrister_power = max_wrister_power
+	cfg.max_wrister_charge_distance = max_wrister_charge_distance
+	cfg.backhand_power_coefficient = backhand_power_coefficient
+	cfg.quick_shot_power = quick_shot_power
+	cfg.quick_shot_threshold = quick_shot_threshold
+	cfg.wrister_elevation = wrister_elevation
+	return cfg
 
-func _slapper_config() -> Dictionary:
-	return {
-		"min_slapper_power": min_slapper_power,
-		"max_slapper_power": max_slapper_power,
-		"max_slapper_charge_time": max_slapper_charge_time,
-		"slapper_elevation": slapper_elevation,
-	}
+func _slapper_config() -> ShotMechanics.SlapperConfig:
+	var cfg := ShotMechanics.SlapperConfig.new()
+	cfg.min_slapper_power = min_slapper_power
+	cfg.max_slapper_power = max_slapper_power
+	cfg.max_slapper_charge_time = max_slapper_charge_time
+	cfg.slapper_elevation = slapper_elevation
+	return cfg
 
 # Converts the world-space blade_height to upper-body-local Y.
 # Uses the upper body's world Y so the result is correct regardless of where

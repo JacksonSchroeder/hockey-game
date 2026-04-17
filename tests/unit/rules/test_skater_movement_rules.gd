@@ -2,17 +2,17 @@ extends GutTest
 
 # SkaterMovementRules — thrust, friction, max speed clamping with carry penalty.
 
-func _default_cfg() -> Dictionary:
-	return {
-		"thrust": 20.0,
-		"friction": 5.0,
-		"max_speed": 10.0,
-		"move_deadzone": 0.1,
-		"brake_multiplier": 5.0,
-		"puck_carry_speed_multiplier": 0.88,
-		"backward_thrust_multiplier": 0.7,
-		"crossover_thrust_multiplier": 0.85,
-	}
+func _default_cfg() -> SkaterMovementRules.MovementConfig:
+	var cfg := SkaterMovementRules.MovementConfig.new()
+	cfg.thrust = 20.0
+	cfg.friction = 5.0
+	cfg.max_speed = 10.0
+	cfg.move_deadzone = 0.1
+	cfg.brake_multiplier = 5.0
+	cfg.puck_carry_speed_multiplier = 0.88
+	cfg.backward_thrust_multiplier = 0.7
+	cfg.crossover_thrust_multiplier = 0.85
+	return cfg
 
 func test_no_input_applies_friction() -> void:
 	var result: Vector3 = SkaterMovementRules.apply_movement(
@@ -63,9 +63,9 @@ func test_over_max_preserved_when_no_thrust() -> void:
 	assert_gt(Vector2(result.x, result.z).length(), cfg.max_speed,
 		"over-max speed from external source should survive a single friction tick")
 
-func _dash_cfg() -> Dictionary:
-	var cfg := _default_cfg()
-	cfg["dash_impulse_magnitude"] = 3.5
+func _dash_cfg() -> SkaterMovementRules.MovementConfig:
+	var cfg: SkaterMovementRules.MovementConfig = _default_cfg()
+	cfg.dash_impulse_magnitude = 3.5
 	return cfg
 
 func test_dash_adds_velocity_from_stopped() -> void:

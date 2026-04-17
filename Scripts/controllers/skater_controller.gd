@@ -876,7 +876,7 @@ func _apply_movement(input: InputState, delta: float) -> void:
 	if _state in [State.SLAPPER_CHARGE_WITH_PUCK, State.SHOT_BLOCKING]:
 		return
 
-	var cfg: Dictionary = _movement_config()
+	var cfg: SkaterMovementRules.MovementConfig = _movement_config()
 	var wants_dash: bool = (
 		input.brake
 		and input.move_vector.length() > move_deadzone
@@ -898,23 +898,23 @@ func _apply_movement(input: InputState, delta: float) -> void:
 				skater.velocity, input.move_vector, skater.rotation.y,
 				has_puck, input.brake, delta, cfg)
 
-func _movement_config() -> Dictionary:
-	return {
-		"thrust": thrust,
-		"friction": friction,
-		"max_speed": max_speed,
-		"move_deadzone": move_deadzone,
-		"brake_multiplier": brake_multiplier,
-		"puck_carry_speed_multiplier": puck_carry_speed_multiplier,
-		"backward_thrust_multiplier": backward_thrust_multiplier,
-		"crossover_thrust_multiplier": crossover_thrust_multiplier,
-		"dash_impulse_magnitude": dash_impulse_magnitude,
-	}
+func _movement_config() -> SkaterMovementRules.MovementConfig:
+	var cfg := SkaterMovementRules.MovementConfig.new()
+	cfg.thrust = thrust
+	cfg.friction = friction
+	cfg.max_speed = max_speed
+	cfg.move_deadzone = move_deadzone
+	cfg.brake_multiplier = brake_multiplier
+	cfg.puck_carry_speed_multiplier = puck_carry_speed_multiplier
+	cfg.backward_thrust_multiplier = backward_thrust_multiplier
+	cfg.crossover_thrust_multiplier = crossover_thrust_multiplier
+	cfg.dash_impulse_magnitude = dash_impulse_magnitude
+	return cfg
 
-func _block_movement_config() -> Dictionary:
-	var cfg: Dictionary = _movement_config()
-	cfg["max_speed"] = max_speed * block_speed_multiplier
-	cfg["thrust"] = thrust * block_speed_multiplier
+func _block_movement_config() -> SkaterMovementRules.MovementConfig:
+	var cfg: SkaterMovementRules.MovementConfig = _movement_config()
+	cfg.max_speed = max_speed * block_speed_multiplier
+	cfg.thrust = thrust * block_speed_multiplier
 	return cfg
 
 func _wrister_config() -> Dictionary:

@@ -4,17 +4,18 @@ class_name SkaterMovementRules
 # Takes current state + input + tuning config, returns the new velocity.
 # The caller (SkaterController) still owns the state machine guard (slapper
 # charge windup, etc.); this function just does the physics.
-#
-# Config dict keys (all floats):
-#   thrust                       — forward thrust magnitude
-#   friction                     — base friction applied each tick
-#   max_speed                    — maximum horizontal speed
-#   move_deadzone                — stick deadzone
-#   brake_multiplier             — friction multiplier when braking
-#   puck_carry_speed_multiplier  — max speed reduction while carrying
-#   backward_thrust_multiplier   — thrust scale when moving against facing
-#   crossover_thrust_multiplier  — thrust scale when moving perpendicular to facing
-#   dash_impulse_magnitude       — speed added per pulse dash
+
+class MovementConfig:
+	var thrust: float = 0.0                      # forward thrust magnitude
+	var friction: float = 0.0                    # base friction applied each tick
+	var max_speed: float = 0.0                   # maximum horizontal speed
+	var move_deadzone: float = 0.0               # stick deadzone
+	var brake_multiplier: float = 0.0            # friction multiplier when braking
+	var puck_carry_speed_multiplier: float = 0.0 # max speed reduction while carrying
+	var backward_thrust_multiplier: float = 0.0  # thrust scale when moving against facing
+	var crossover_thrust_multiplier: float = 0.0 # thrust scale when moving perpendicular to facing
+	var dash_impulse_magnitude: float = 0.0      # speed added per pulse dash
+
 static func apply_movement(
 		current_velocity: Vector3,
 		move_input: Vector2,
@@ -22,7 +23,7 @@ static func apply_movement(
 		has_puck: bool,
 		brake: bool,
 		delta: float,
-		cfg: Dictionary) -> Vector3:
+		cfg: MovementConfig) -> Vector3:
 	var velocity: Vector3 = current_velocity
 
 	if move_input.length() > cfg.move_deadzone:
@@ -66,16 +67,11 @@ static func apply_movement(
 # Same cap philosophy as apply_movement's thrust block: preserves pre-existing
 # over-max speed (body check, etc.) but prevents free acceleration when already
 # at max (same-direction spamming has no effect).
-#
-# Config keys used:
-#   dash_impulse_magnitude       — speed added per dash (m/s)
-#   max_speed                    — horizontal speed ceiling
-#   puck_carry_speed_multiplier  — applied to ceiling when carrying
 static func apply_dash_impulse(
 		current_velocity: Vector3,
 		dash_dir: Vector3,
 		has_puck: bool,
-		cfg: Dictionary) -> Vector3:
+		cfg: MovementConfig) -> Vector3:
 	var velocity: Vector3 = current_velocity
 	var impulse: Vector3 = dash_dir.normalized() * cfg.dash_impulse_magnitude
 	velocity += impulse

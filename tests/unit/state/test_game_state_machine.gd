@@ -85,24 +85,26 @@ func test_movement_unlocked_during_faceoff() -> void:
 
 # ── Player registry ──────────────────────────────────────────────────────────
 
-func test_host_registration_gets_slot_0() -> void:
+func test_host_registration_takes_team_slot_0() -> void:
 	var r: Dictionary = sm.register_host(1)
-	assert_eq(r.slot, 0)
-	assert_eq(r.team_id, 0)
+	assert_eq(r.team_slot, 0)
+	assert_true(r.team_id == 0 or r.team_id == 1)
 
-func test_first_connected_peer_gets_team_0_if_host_on_team_0() -> void:
-	# If host didn't register, the first connected peer gets team 0
-	var r: Dictionary = sm.on_player_connected(100)
-	assert_eq(r.slot, 1)
-	assert_eq(r.team_id, 0)
+func test_first_connected_peer_fills_opposite_team() -> void:
+	# After host claims one team, the first connected peer balances to the other.
+	var host: Dictionary = sm.register_host(1)
+	var peer: Dictionary = sm.on_player_connected(100)
+	assert_ne(peer.team_id, host.team_id, "second player should balance to the other team")
+	assert_eq(peer.team_slot, 0, "first slot on the newly-filled team")
 
-func test_second_connected_peer_balances_to_team_1() -> void:
-	sm.register_host(1)           # team 0
-	sm.on_player_connected(100)   # team 1
-	var r: Dictionary = sm.on_player_connected(200)
-	# host team 0, peer 100 team 1 → peer 200 should go team 0 (smaller)
-	assert_eq(r.team_id, 0)
-	assert_eq(r.slot, 2)
+func test_third_connection_leaves_teams_within_one_of_each_other() -> void:
+	sm.register_host(1)
+	sm.on_player_connected(100)
+	sm.on_player_connected(200)
+	# Third player lands on a tied matchup (1-1), so team is random; the balance
+	# invariant is that no team ever trails by more than one.
+	var diff: int = absi(sm.count_players_on_team(0) - sm.count_players_on_team(1))
+	assert_lte(diff, 1, "teams stay within 1 player of each other")
 
 func test_disconnected_player_removed() -> void:
 	sm.register_host(1)

@@ -108,6 +108,7 @@ Authoritative host model. The host runs all physics. Clients predict locally and
 | `networking/buffered_skater_state.gd` | Timestamped SkaterNetworkState for interpolation buffer |
 | `networking/buffered_puck_state.gd` | Timestamped PuckNetworkState for interpolation buffer |
 | `networking/buffered_goalie_state.gd` | Timestamped GoalieNetworkState for interpolation buffer |
+| `networking/buffered_state_interpolator.gd` | Shared bracket-search + stale-trim helpers used by the three interpolating controllers. |
 | `networking/goalie_network_state.gd` | Serializable goalie state: position, rotation, state enum, five_hole_openness |
 | `networking/skater_network_state.gd` | Serializable skater state: position, velocity, facing, blade, top_hand, input sequence, is_ghost |
 | `networking/puck_network_state.gd` | Serializable puck state: position, velocity, carrier peer ID |

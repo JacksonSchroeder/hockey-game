@@ -45,32 +45,23 @@ func apply_network_state(state: SkaterNetworkState) -> void:
 
 func _interpolate() -> void:
 	var render_time: float = _current_time - interpolation_delay
-	if _state_buffer.size() < 2:
+	var bracket: BufferedStateInterpolator.BracketResult = BufferedStateInterpolator.find_bracket(
+			_state_buffer, render_time)
+	if bracket == null:
 		return
-	var from_state: BufferedSkaterState = null
-	var to_state: BufferedSkaterState = null
-	for i in range(_state_buffer.size() - 1):
-		var a: BufferedSkaterState = _state_buffer[i]
-		var b: BufferedSkaterState = _state_buffer[i + 1]
-		if a.timestamp <= render_time and render_time <= b.timestamp:
-			from_state = a
-			to_state = b
-			break
-	if from_state == null or to_state == null:
-		_apply_state_to_skater(_state_buffer.back().state)
-		return
-	var t: float = clampf((render_time - from_state.timestamp) / (to_state.timestamp - from_state.timestamp), 0.0, 1.0)
+	var from_state: SkaterNetworkState = bracket.from_state
+	var to_state: SkaterNetworkState = bracket.to_state
+	var t: float = bracket.t
 	var interpolated := SkaterNetworkState.new()
-	interpolated.position = from_state.state.position.lerp(to_state.state.position, t)
-	interpolated.rotation = from_state.state.rotation.lerp(to_state.state.rotation, t)
-	interpolated.velocity = from_state.state.velocity.lerp(to_state.state.velocity, t)
-	interpolated.blade_position = from_state.state.blade_position.lerp(to_state.state.blade_position, t)
-	interpolated.top_hand_position = from_state.state.top_hand_position.lerp(to_state.state.top_hand_position, t)
-	interpolated.upper_body_rotation_y = lerpf(from_state.state.upper_body_rotation_y, to_state.state.upper_body_rotation_y, t)
-	interpolated.facing = from_state.state.facing.lerp(to_state.state.facing, t).normalized()
+	interpolated.position = from_state.position.lerp(to_state.position, t)
+	interpolated.rotation = from_state.rotation.lerp(to_state.rotation, t)
+	interpolated.velocity = from_state.velocity.lerp(to_state.velocity, t)
+	interpolated.blade_position = from_state.blade_position.lerp(to_state.blade_position, t)
+	interpolated.top_hand_position = from_state.top_hand_position.lerp(to_state.top_hand_position, t)
+	interpolated.upper_body_rotation_y = lerpf(from_state.upper_body_rotation_y, to_state.upper_body_rotation_y, t)
+	interpolated.facing = from_state.facing.lerp(to_state.facing, t).normalized()
 	_apply_state_to_skater(interpolated)
-	while _state_buffer.size() > 2 and _state_buffer[1].timestamp < render_time:
-		_state_buffer.pop_front()
+	BufferedStateInterpolator.drop_stale(_state_buffer, render_time)
 
 func _apply_state_to_skater(state: SkaterNetworkState) -> void:
 	skater.global_position = state.position

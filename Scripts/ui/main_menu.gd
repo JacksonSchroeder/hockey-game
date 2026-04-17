@@ -108,6 +108,13 @@ func _build_ui() -> void:
 	spacer3.custom_minimum_size = Vector2(0, 16)
 	vbox.add_child(spacer3)
 
+	var version_label := Label.new()
+	version_label.text = "v%s" % BuildInfo.VERSION
+	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	version_label.add_theme_font_size_override("font_size", 14)
+	version_label.add_theme_color_override("font_color", Color(0.55, 0.55, 0.60, 1.0))
+	vbox.add_child(version_label)
+
 	var update_checker: UpdateChecker = UpdateChecker.new()
 	update_checker.custom_minimum_size = Vector2(380, 0)
 	vbox.add_child(update_checker)

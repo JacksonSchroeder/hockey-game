@@ -1,11 +1,12 @@
 extends Node
 
-# Orchestrator. Owns the GameStateMachine and wires together five focused
+# Orchestrator. Owns the GameStateMachine and wires together six focused
 # collaborators, each in its own file:
 #
 #   PlayerRegistry       — players dict, spawn/despawn, resolvers
 #   WorldStateCodec      — RPC-wire serialization for world state + stats
 #   ShotOnGoalTracker    — pending-shot state machine + assist crediting
+#   HitTracker           — cross-team hit validation + stat crediting
 #   PhaseCoordinator     — phase-entry side effects, goal pipeline
 #   SlotSwapCoordinator  — mid-game slot swap request/confirm
 #
@@ -43,6 +44,7 @@ var puck_controller: PuckController = null
 var _registry: PlayerRegistry = null
 var _codec: WorldStateCodec = null
 var _shot_tracker: ShotOnGoalTracker = null
+var _hit_tracker: HitTracker = null
 var _phase_coord: PhaseCoordinator = null
 var _swap_coord: SlotSwapCoordinator = null
 
@@ -307,6 +309,10 @@ func _wire_subsystems() -> void:
 	_shot_tracker.setup(_registry, _state_machine)
 	_shot_tracker.shots_on_goal_changed.connect(shots_on_goal_changed.emit)
 
+	_hit_tracker = HitTracker.new()
+	_hit_tracker.setup(_registry)
+	_hit_tracker.hit_credited.connect(_sync_stats_to_clients)
+
 	_phase_coord = PhaseCoordinator.new()
 	_phase_coord.setup(_state_machine, _registry, teams,
 			get_puck, _get_goalie_controllers, _shot_tracker, _drop_puck_if_carried)
@@ -393,9 +399,9 @@ func _on_server_puck_stripped_from(peer_id: int) -> void:
 		NetworkManager.send_puck_stolen(peer_id)
 
 
-func _on_server_puck_touched_while_loose() -> void:
+func _on_server_puck_touched_while_loose(peer_id: int) -> void:
 	_state_machine.notify_icing_contact()
-	_shot_tracker.on_loose_puck_touched()
+	_shot_tracker.on_deflection(peer_id)
 
 
 func _on_puck_touched_by_goalie(goalie: Goalie) -> void:
@@ -535,14 +541,10 @@ func _on_slot_swap_confirmed(peer_id: int, old_team_id: int, old_slot: int,
 
 
 # ── Hit tracking ─────────────────────────────────────────────────────────────
-func _on_hit_landed(hitter_peer_id: int, _victim: Skater) -> void:
+func _on_hit_landed(hitter_peer_id: int, victim: Skater) -> void:
 	if not NetworkManager.is_host:
 		return
-	var record: PlayerRecord = _registry.get_record(hitter_peer_id)
-	if record == null:
-		return
-	record.stats.hits += 1
-	_sync_stats_to_clients()
+	_hit_tracker.on_hit(hitter_peer_id, _registry.resolve_team_id(victim))
 
 
 # ── Scene exit & reset ───────────────────────────────────────────────────────

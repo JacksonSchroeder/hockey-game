@@ -131,7 +131,7 @@ func on_goal_scored_into(defending_team: Team) -> void:
 	var assist1_name: String = ""
 	var assist2_name: String = ""
 	var raw_scorer_id: int = carrier_peer_id if carrier_peer_id != -1 \
-			else _shot_tracker.get_shooter_peer_id()
+			else _shot_tracker.get_last_toucher()
 	var is_own_goal: bool = _is_own_goal(raw_scorer_id, defending_team.team_id)
 	var scorer_id: int = raw_scorer_id
 	if is_own_goal:

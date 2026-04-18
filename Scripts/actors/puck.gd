@@ -4,7 +4,7 @@ extends RigidBody3D
 signal puck_picked_up(carrier: Skater)
 signal puck_released()
 signal puck_stripped(ex_carrier: Skater)
-signal puck_touched_loose  # any loose-puck touch (deflection, body block) — cancels icing
+signal puck_touched_loose(skater: Skater)  # any loose-puck touch (deflection, body block)
 signal puck_touched_goalie(goalie: Goalie)  # puck contacted a goalie StaticBody3D part while uncarried
 
 @export var max_speed: float = 30.0
@@ -187,7 +187,7 @@ func _deflect_off_blade(skater: Skater) -> void:
 
 	linear_velocity = new_vel
 	_set_cooldown(skater, deflect_cooldown)
-	puck_touched_loose.emit()
+	puck_touched_loose.emit(skater)
 
 func on_body_block(blocker: Skater, dampen_override: float = -1.0) -> void:
 	if not _is_server:
@@ -210,7 +210,7 @@ func on_body_block(blocker: Skater, dampen_override: float = -1.0) -> void:
 	linear_velocity = PuckCollisionRules.body_block_velocity(
 			linear_velocity, contact_normal, effective_dampen)
 	_set_cooldown(blocker, body_block_cooldown)
-	puck_touched_loose.emit()
+	puck_touched_loose.emit(blocker)
 
 func on_body_check(checker: Skater, victim: Skater, impact_force: float, hit_direction: Vector3) -> void:
 	if not _is_server:

@@ -7,7 +7,7 @@ extends RefCounted
 #
 # Flow:
 #   on_pickup(peer_id)              → records carrier, clears any pending shot
-#   on_loose_puck_touched()         → deflection / body block cancels pending
+#   on_deflection(peer_id)          → records toucher in carrier history, keeps pending shot alive
 #   on_shot_started(peer_id)        → arms pending-shot timer
 #   on_goalie_touch(defending_tid)  → confirms SOG if eligible
 #   on_goal_confirmed(scorer_id)    → confirms SOG (non-own-goal only)
@@ -48,8 +48,16 @@ func on_pickup(peer_id: int) -> void:
 			_recent_carriers.resize(MAX_RECENT_CARRIERS)
 
 
-func on_loose_puck_touched() -> void:
-	clear_pending()
+# Called when a loose puck is deflected or body-blocked by a skater. Records the
+# toucher in the carrier history (for assist credit) but keeps the pending shot
+# alive — a tip-in off a shot still counts.
+func on_deflection(peer_id: int) -> void:
+	if peer_id == -1:
+		return
+	if _recent_carriers.is_empty() or _recent_carriers[0] != peer_id:
+		_recent_carriers.push_front(peer_id)
+		if _recent_carriers.size() > MAX_RECENT_CARRIERS:
+			_recent_carriers.resize(MAX_RECENT_CARRIERS)
 
 
 # Call when a carrier releases the puck as a normal shot. The carrier was
@@ -91,6 +99,8 @@ func credit_assists(scorer_peer_id: int) -> Array[String]:
 		return names
 	for i: int in range(1, _recent_carriers.size()):
 		var pid: int = _recent_carriers[i]
+		if pid == scorer_peer_id:
+			break  # scorer's own prior touch ends the chain
 		var record: PlayerRecord = _registry.get_record(pid)
 		if record == null:
 			continue
@@ -115,6 +125,10 @@ func tick(delta: float) -> void:
 
 func get_shooter_peer_id() -> int:
 	return _shooter_peer_id
+
+# Returns the most recent player to touch the puck (carrier or deflector), or -1.
+func get_last_toucher() -> int:
+	return _recent_carriers[0] if not _recent_carriers.is_empty() else -1
 
 
 func has_pending_shot() -> bool:

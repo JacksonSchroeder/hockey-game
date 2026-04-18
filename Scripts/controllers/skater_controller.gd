@@ -526,18 +526,23 @@ func _enter_slapper_charge(input: InputState) -> void:
 	_slapper_charge_timer = 0.0
 	_shot_dir = Vector3.ZERO
 	_one_timer_window_timer = 0.0
-	# Lock direction toward mouse at press time. Falls back to facing if the
-	# cursor is on top of the player (below deadzone).
+	# Snap facing toward mouse first so the blade-side world position is correct.
 	var to_mouse := Vector2(
 		input.mouse_world_pos.x - skater.global_position.x,
 		input.mouse_world_pos.z - skater.global_position.z)
-	_locked_slapper_dir = to_mouse.normalized() if to_mouse.length() > move_deadzone else _facing
-	# Snap facing to the locked shot direction so the body, blade wind-up, and
-	# shot direction all align immediately at entry. Without this, the blade
-	# winds up on the skater's local side (which may be perpendicular to the aim)
-	# and the visual swing direction doesn't match where the shot goes.
-	_facing = _locked_slapper_dir
+	_facing = to_mouse.normalized() if to_mouse.length() > move_deadzone else _facing
 	skater.set_facing(_facing)
+	# Lock aim direction from the actual blade-side release point → mouse.
+	var blade_side_sign: float = -1.0 if skater.is_left_handed else 1.0
+	var blade_local := Vector3(
+		skater.shoulder.position.x + blade_side_sign * slapper_blade_x,
+		_blade_y_local(),
+		skater.shoulder.position.z + slapper_blade_z)
+	var blade_world: Vector3 = skater.upper_body_to_global(blade_local)
+	var to_mouse_from_blade := Vector2(
+		input.mouse_world_pos.x - blade_world.x,
+		input.mouse_world_pos.z - blade_world.z)
+	_locked_slapper_dir = to_mouse_from_blade.normalized() if to_mouse_from_blade.length() > move_deadzone else _facing
 	_upper_body_angle = 0.0
 	_upper_body_lean = 0.0
 	_velocity_lean_x = 0.0
